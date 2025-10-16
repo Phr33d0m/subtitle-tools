@@ -14,6 +14,7 @@ A collection of highly opinionated Python scripts for parallel processing video 
     - [submerge.py - Subtitle Merging](#submergepy---subtitle-merging)
     - [subextract.py - Subtitle Extraction](#subextractpy---subtitle-extraction)
     - [subattachextract.py - Attachment Extraction](#subattachextractpy---attachment-extraction)
+    - [subtimefix.py - Subtitle Timestamp Shifting](#subtimefixpy---subtitle-timestamp-shifting)
   - [File Naming Conventions](#file-naming-conventions)
     - [Video Files](#video-files)
     - [Subtitle Files](#subtitle-files)
@@ -250,6 +251,41 @@ python3 subattachextract.py -q -p 8
 - `--dry-run`: Show what would be extracted without actually extracting files
 - `-q, --quiet`: Suppress verbose output
 - `-p, --parallel`: Number of parallel workers (default: 4)
+
+### subtimefix.py - Subtitle Timestamp Shifting
+
+Shifts all timestamps in ASS subtitle files by a specified number of milliseconds with support for recursive directory processing.
+
+**Features:**
+
+- Supports both Dialogue: and Comment: timestamps
+- Respects the Format: mapping inside [Events] sections
+- Handles multiple [Events] blocks in a single file
+- Symmetric rounding to centisecond precision (ASS accuracy)
+- Clamps timestamps below zero to prevent negative times
+- Multiple encoding support (UTF-8-sig, UTF-8, CP1252, Latin-1 fallback)
+- Recursive processing of directories containing .ass files
+
+**Usage:**
+
+```bash
+# Shift timestamps forward by 6032 milliseconds
+python3 subtimefix.py -t '6032'
+
+# Shift timestamps backward by 6032 milliseconds
+python3 subtimefix.py -t '-6032'
+
+# Process specific file
+python3 subtimefix.py -t '6032' myfile.ass
+
+# Process all .ass files in directory recursively
+python3 subtimefix.py -t '6032' ./folder
+```
+
+**Arguments:**
+
+- `-t, --time`: Time shift in milliseconds (required). Positive values move timestamps forward, negative values move them backward.
+- `path`: Optional path to a .ass file or directory (default: current directory). If a directory is provided, processes all .ass files recursively.
 
 ## File Naming Conventions
 
