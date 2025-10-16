@@ -30,7 +30,7 @@ from typing import Dict, List, Optional, Tuple, Set
 
 # ------------------------------ Constants ------------------------------ #
 
-DEFAULT_VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.MP4', '.MKV'}
+DEFAULT_VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.MP4', '.MKV', '.webm'}
 DEFAULT_SUBTITLE_EXTENSIONS = {'.ass', '.srt', '.ASS', '.SRT'}
 FONTS_DIR_NAME = "Fonts"
 
@@ -40,6 +40,67 @@ SUBTITLE_FORMAT_PRIORITY = {
     '.ASS': 2,
     '.srt': 1,
     '.SRT': 1,
+}
+
+# Language code mapping: maps various formats to standardized mkvmerge-compatible codes
+LANGUAGE_CODE_MAPPING = {
+    # ISO 639-1 (2-letter codes)
+    'en': 'eng', 'es': 'spa', 'fr': 'fre', 'de': 'ger', 'it': 'ita',
+    'pt': 'por', 'ru': 'rus', 'ja': 'jpn', 'ko': 'kor', 'ar': 'ara',
+    'hi': 'hin', 'th': 'tha', 'vi': 'vie', 'bg': 'bul', 'cs': 'cze',
+    'da': 'dan', 'el': 'gre', 'he': 'heb', 'hu': 'hun', 'nl': 'dut',
+    'no': 'nor', 'pl': 'pol', 'ro': 'rum', 'sv': 'swe', 'tr': 'tur',
+    'uk': 'ukr', 'zh': 'chi', 'fa': 'per', 'ur': 'urd', 'bn': 'ben',
+    'pa': 'pan', 'ta': 'tam', 'te': 'tel', 'ml': 'mal', 'kn': 'kan',
+    'gu': 'guj', 'mr': 'mar', 'ne': 'nep', 'si': 'sin', 'my': 'bur',
+    'km': 'khm', 'lo': 'lao', 'ka': 'geo', 'am': 'amh', 'sw': 'swa',
+    'zu': 'zul', 'af': 'afr', 'is': 'ice', 'mt': 'mlt', 'cy': 'wel',
+    'ga': 'gle', 'gd': 'gla', 'eu': 'baq', 'ca': 'cat', 'gl': 'glg',
+    'sr': 'srp', 'hr': 'hrv', 'sl': 'slv', 'et': 'est', 'lv': 'lav',
+    'lt': 'lit', 'fi': 'fin', 'mk': 'mac', 'sq': 'alb', 'hy': 'arm',
+    'az': 'aze', 'kk': 'kaz', 'ky': 'kir', 'uz': 'uzb', 'tg': 'tgk',
+    'mn': 'mon', 'bo': 'tib', 'dz': 'dzo', 'ny': 'nya', 'sn': 'sna',
+    'yo': 'yor', 'ig': 'ibo', 'ha': 'hau', 'so': 'som', 'ti': 'tir',
+
+    # ISO 639-2/T (3-letter codes) - map to themselves
+    'eng': 'eng', 'spa': 'spa', 'fre': 'fre', 'ger': 'ger', 'ita': 'ita',
+    'por': 'por', 'rus': 'rus', 'jpn': 'jpn', 'kor': 'kor', 'ara': 'ara',
+    'hin': 'hin', 'tha': 'tha', 'vie': 'vie', 'bul': 'bul', 'cze': 'cze',
+    'dan': 'dan', 'gre': 'gre', 'heb': 'heb', 'hun': 'hun', 'dut': 'dut',
+    'nor': 'nor', 'pol': 'pol', 'rum': 'rum', 'swe': 'swe', 'tur': 'tur',
+    'ukr': 'ukr', 'chi': 'chi', 'per': 'per', 'urd': 'urd', 'ben': 'ben',
+    'pan': 'pan', 'tam': 'tam', 'tel': 'tel', 'mal': 'mal', 'kan': 'kan',
+    'guj': 'guj', 'mar': 'mar', 'nep': 'nep', 'sin': 'sin', 'bur': 'bur',
+    'khm': 'khm', 'lao': 'lao', 'geo': 'geo', 'amh': 'amh', 'swa': 'swa',
+    'zul': 'zul', 'afr': 'afr', 'ice': 'ice', 'mlt': 'mlt', 'wel': 'wel',
+    'gle': 'gle', 'gla': 'gla', 'baq': 'baq', 'cat': 'cat', 'glg': 'glg',
+    'srp': 'srp', 'hrv': 'hrv', 'slv': 'slv', 'est': 'est', 'lav': 'lav',
+    'lit': 'lit', 'fin': 'fin', 'mac': 'mac', 'alb': 'alb', 'arm': 'arm',
+    'aze': 'aze', 'kaz': 'kaz', 'kir': 'kir', 'uzb': 'uzb', 'tgk': 'tgk',
+    'mon': 'mon', 'tib': 'tib', 'dzo': 'dzo', 'nya': 'nya', 'sna': 'sna',
+    'yor': 'yor', 'ibo': 'ibo', 'hau': 'hau', 'som': 'som', 'tir': 'tir',
+
+    # IETF language tags - mkvmerge accepts many of these directly
+    'zh-Hans': 'zh-Hans', 'zh-Hant': 'zh-Hant', 'zh-cn': 'zh-Hans', 'zh-tw': 'zh-Hant',
+    'pt-BR': 'pt-BR', 'pt-PT': 'pt-PT', 'en-US': 'eng', 'en-GB': 'eng',
+    'es-ES': 'spa', 'es-MX': 'spa', 'fr-FR': 'fre', 'fr-CA': 'fre',
+    'de-DE': 'ger', 'de-AT': 'ger', 'it-IT': 'ita', 'ja-JP': 'jpn',
+    'ko-KR': 'kor', 'ar-SA': 'ara', 'ru-RU': 'rus', 'hi-IN': 'hin',
+    'th-TH': 'tha', 'vi-VN': 'vie', 'bg-BG': 'bul', 'tr-TR': 'tur',
+
+    # Additional common variations
+    'chi': 'chi', 'chn': 'chi',  # Chinese variations
+    'spa': 'spa', 'es': 'spa',   # Spanish variations
+    'fre': 'fre', 'fr': 'fre',   # French variations
+    'ger': 'ger', 'de': 'ger',   # German variations
+    'cze': 'cze', 'cs': 'cze',   # Czech variations
+    'gre': 'gre', 'el': 'gre',   # Greek variations
+    'rum': 'rum', 'ro': 'rum',   # Romanian variations
+    'mac': 'mac', 'mk': 'mac',   # Macedonian variations
+    'baq': 'baq', 'eu': 'baq',   # Basque variations
+    'bur': 'bur', 'my': 'bur',   # Burmese variations
+    'tib': 'tib', 'bo': 'tib',   # Tibetan variations
+    'per': 'per', 'fa': 'per',   # Persian variations
 }
 
 
@@ -54,8 +115,13 @@ class SubtitleFile:
     priority: int
 
     @classmethod
-    def from_path(cls, path: Path) -> Optional[SubtitleFile]:
-        """Create SubtitleFile from path, extracting language code from compound extension."""
+    def from_path(cls, path: Path, base_name: Optional[str] = None) -> Optional[SubtitleFile]:
+        """Create SubtitleFile from path, extracting language code from compound extension.
+
+        Args:
+            path: Path to the subtitle file
+            base_name: Base video name to match against (for simple extension detection)
+        """
         if path.suffix not in DEFAULT_SUBTITLE_EXTENSIONS:
             return None
 
@@ -63,24 +129,46 @@ class SubtitleFile:
         stem = path.stem
         parts = stem.split('.')
 
-        if len(parts) >= 2:
-            # Last part is the base name, second to last is language code
-            language_code = parts[-1]
-        elif len(parts) == 1:
-            # No language code found
-            return None
-        else:
-            return None
-
         extension = path.suffix
         priority = SUBTITLE_FORMAT_PRIORITY.get(extension, 0)
 
-        return cls(
-            path=path,
-            language_code=language_code,
-            extension=extension,
-            priority=priority
-        )
+        if len(parts) >= 2 and base_name:
+            # Check if this matches the pattern: base_name.language_code.extension
+            potential_base_name = '.'.join(parts[:-1])
+            potential_lang_code = parts[-1]
+
+            if potential_base_name == base_name:
+                # This is a compound extension with language code
+                detected_language = detect_language_code(potential_lang_code)
+                return cls(
+                    path=path,
+                    language_code=detected_language,
+                    extension=extension,
+                    priority=priority
+                )
+
+        if len(parts) >= 2:
+            # General compound extension case (backward compatibility)
+            language_code = parts[-1]
+            detected_language = detect_language_code(language_code)
+            return cls(
+                path=path,
+                language_code=detected_language,
+                extension=extension,
+                priority=priority
+            )
+        elif len(parts) == 1:
+            # Simple extension (no language code) - only if base_name is provided
+            if base_name and parts[0] == base_name:
+                # This is a subtitle without language code matching the video
+                return cls(
+                    path=path,
+                    language_code="und",  # Undetermined language
+                    extension=extension,
+                    priority=priority
+                )
+
+        return None
 
 
 @dataclass(frozen=True)
@@ -97,6 +185,7 @@ class ProcessingStats:
     processed_videos: int = 0
     skipped_videos: int = 0
     failed_videos: int = 0
+    total_subtitle_tracks: int = 0
     fonts_embedded: int = 0
 
     def __str__(self) -> str:
@@ -105,6 +194,7 @@ class ProcessingStats:
                 f"  Successfully processed: {self.processed_videos}\n"
                 f"  Skipped: {self.skipped_videos}\n"
                 f"  Failed: {self.failed_videos}\n"
+                f"  Total subtitle tracks merged: {self.total_subtitle_tracks}\n"
                 f"  Fonts embedded: {self.fonts_embedded}")
 
 
@@ -161,6 +251,42 @@ def normalize_language_code(language_code: str) -> str:
     return language_code.strip()
 
 
+def detect_language_code(language_code: str) -> str:
+    """Detect and normalize language code from various formats."""
+    if not language_code:
+        return "und"  # Undetermined language
+
+    normalized_code = language_code.strip()
+
+    # Look up in mapping dictionary
+    mapped_code = LANGUAGE_CODE_MAPPING.get(normalized_code.lower())
+    if mapped_code:
+        return mapped_code
+
+    # For unrecognized codes, try to be smart about it
+    # If it's already 3 letters and looks like ISO 639-2, use as-is
+    if len(normalized_code) == 3 and normalized_code.isalpha():
+        logging.debug("Unrecognized 3-letter language code: %s",
+                      normalized_code)
+        return normalized_code.lower()
+
+    # If it's 2 letters and looks like ISO 639-1, try to convert
+    if len(normalized_code) == 2 and normalized_code.isalpha():
+        logging.debug("Unrecognized 2-letter language code: %s",
+                      normalized_code)
+        return normalized_code.lower()
+
+    # For IETF tags, if not in mapping, use as-is (mkvmerge might handle them)
+    if '-' in normalized_code:
+        logging.debug("Using IETF language tag: %s", normalized_code)
+        return normalized_code
+
+    # Default to undetermined
+    logging.debug(
+        "Could not identify language code: %s -> using 'und'", language_code)
+    return "und"
+
+
 # ------------------------------ Core Functions ------------------------------ #
 
 def find_video_files(root_dir: Path) -> List[Path]:
@@ -174,7 +300,7 @@ def find_video_files(root_dir: Path) -> List[Path]:
 
 
 def find_subtitle_files(base_path: Path) -> List[SubtitleFile]:
-    """Find subtitle files matching the given base path."""
+    """Find all subtitle files matching the given base path."""
     subtitle_files = []
 
     # Get the base name without extension
@@ -183,24 +309,14 @@ def find_subtitle_files(base_path: Path) -> List[SubtitleFile]:
     # Look for all subtitle files in the same directory
     for ext in DEFAULT_SUBTITLE_EXTENSIONS:
         for sub_path in base_path.parent.glob(f"*{ext}"):
-            # Check if the subtitle file matches the video base name plus language code
-            # Remove the language code and extension from subtitle file name to get the video base name
-            sub_stem = sub_path.stem  # Everything before the extension
-            sub_parts = sub_stem.split('.')
+            # Try to create subtitle file with both compound and simple extensions
+            subtitle_file = SubtitleFile.from_path(sub_path, base_name)
+            if subtitle_file:
+                subtitle_files.append(subtitle_file)
 
-            if len(sub_parts) >= 2:
-                # The language code should be the last part
-                potential_lang_code = sub_parts[-1]
-                potential_base_name = '.'.join(sub_parts[:-1])
-
-                # Check if the base name matches
-                if potential_base_name == base_name:
-                    subtitle_file = SubtitleFile.from_path(sub_path)
-                    if subtitle_file:
-                        subtitle_files.append(subtitle_file)
-
-    # Sort by priority (higher first), then by language code
-    subtitle_files.sort(key=lambda x: (-x.priority, x.language_code))
+    # Sort by priority (higher first), then by language code, then by path for consistency
+    subtitle_files.sort(
+        key=lambda x: (-x.priority, x.language_code, str(x.path)))
 
     return subtitle_files
 
@@ -232,14 +348,14 @@ def collect_font_attachments(root_dir: Path) -> List[FontAttachment]:
     return font_attachments
 
 
-def merge_video_with_subtitle(
+def merge_video_with_subtitles(
     video_path: Path,
-    subtitle_file: SubtitleFile,
+    subtitle_files: List[SubtitleFile],
     font_attachments: List[FontAttachment],
     temp_dir: Optional[Path],
     dry_run: bool = False
 ) -> bool:
-    """Merge video file with subtitle using mkvmerge."""
+    """Merge video file with multiple subtitle tracks using mkvmerge."""
 
     base_name = video_path.stem
     output_path = video_path.parent / f"{base_name}.mkv"
@@ -251,16 +367,32 @@ def merge_video_with_subtitle(
         'mkvmerge',
         '-q',  # Quiet mode
         '-o', str(temp_output),
-        '--no-subtitles', str(video_path),
-        '--language', '0:' +
-        normalize_language_code(subtitle_file.language_code),
-        '--track-name', '0:' + subtitle_file.language_code.upper(),
-        '--default-track-flag', '0:yes',
-        str(subtitle_file.path)
+        '--no-subtitles', str(video_path)
     ]
 
-    # Add font attachments if available and subtitle format requires fonts (ASS)
-    if subtitle_file.extension.lower() == '.ass' and font_attachments:
+    # Add all subtitle tracks
+    for i, subtitle_file in enumerate(subtitle_files):
+        track_id = str(i)
+        language_code = normalize_language_code(subtitle_file.language_code)
+        display_name = f"{subtitle_file.language_code.upper()} {subtitle_file.extension[1:].upper()}"
+
+        cmd.extend([
+            '--language', f'{track_id}:{language_code}',
+            '--track-name', f'{track_id}:{display_name}'
+        ])
+
+        # Set first subtitle as default track
+        if i == 0:
+            cmd.extend(['--default-track-flag', f'{track_id}:yes'])
+        else:
+            cmd.extend(['--default-track-flag', f'{track_id}:no'])
+
+        cmd.append(str(subtitle_file.path))
+
+    # Add font attachments if available and any subtitle format requires fonts (ASS)
+    has_ass_subtitles = any(sub.extension.lower() ==
+                            '.ass' for sub in subtitle_files)
+    if has_ass_subtitles and font_attachments:
         logging.info("Embedding %d font(s) into MKV", len(font_attachments))
         for font in font_attachments:
             cmd.extend([
@@ -286,17 +418,22 @@ def merge_video_with_subtitle(
             logging.error("mkvmerge output file is missing or empty")
             return False
 
+        # Create list of all subtitle paths for backup
+        subtitle_paths = [sub.path for sub in subtitle_files]
+
         # Replace original files safely
         backup_video = video_path.with_suffix(video_path.suffix + '.bak')
-        backup_sub = subtitle_file.path.with_suffix(
-            subtitle_file.path.suffix + '.bak')
+        backup_subs = [sub_path.with_suffix(
+            sub_path.suffix + '.bak') for sub_path in subtitle_paths]
 
         try:
             # Create backups
             if video_path.exists():
                 video_path.rename(backup_video)
-            if subtitle_file.path.exists():
-                subtitle_file.path.rename(backup_sub)
+            for sub_path in subtitle_paths:
+                if sub_path.exists():
+                    sub_path.rename(sub_path.with_suffix(
+                        sub_path.suffix + '.bak'))
 
             # Move temp file to final location (same device, so rename works)
             temp_output.rename(output_path)
@@ -304,10 +441,14 @@ def merge_video_with_subtitle(
             # Remove backups after successful merge
             if backup_video.exists():
                 backup_video.unlink()
-            if backup_sub.exists():
-                backup_sub.unlink()
+            for backup_sub in backup_subs:
+                if backup_sub.exists():
+                    backup_sub.unlink()
 
-            logging.info("✓ Created: %s", output_path)
+            subtitle_names = [
+                f"{sub.language_code.upper()} ({sub.extension[1:]})" for sub in subtitle_files]
+            logging.info("✓ Created: %s with subtitles: %s",
+                         output_path, ', '.join(subtitle_names))
             return True
 
         except Exception as e:
@@ -316,8 +457,9 @@ def merge_video_with_subtitle(
                 "Failed to replace files, attempting to restore backups: %s", e)
             if backup_video.exists():
                 backup_video.rename(video_path)
-            if backup_sub.exists():
-                backup_sub.rename(subtitle_file.path)
+            for i, sub_path in enumerate(subtitle_paths):
+                if backup_subs[i].exists():
+                    backup_subs[i].rename(sub_path)
             if temp_output.exists():
                 temp_output.unlink()
             return False
@@ -342,29 +484,31 @@ def process_single_video(
     temp_dir: Optional[Path],
     dry_run: bool = False
 ) -> Tuple[bool, str]:
-    """Process a single video file."""
+    """Process a single video file with all matching subtitle tracks."""
 
     if not subtitle_files:
         return False, f"No matching subtitle files found for {video_path.name}"
 
-    # Use the highest priority subtitle file
-    selected_subtitle = subtitle_files[0]
+    # Log all found subtitle files
+    subtitle_names = [
+        f"{sub.language_code.upper()} ({sub.extension[1:]})" for sub in subtitle_files]
+    logging.info("Processing %s with %d subtitle(s): %s", video_path.name,
+                 len(subtitle_files), ', '.join(subtitle_names))
 
-    logging.info("Processing %s with %s", video_path.name,
-                 selected_subtitle.path.name)
-
-    success = merge_video_with_subtitle(
+    success = merge_video_with_subtitles(
         video_path=video_path,
-        subtitle_file=selected_subtitle,
+        subtitle_files=subtitle_files,
         font_attachments=font_attachments,
         temp_dir=temp_dir,
         dry_run=dry_run
     )
 
     if success:
-        return True, f"Successfully merged {selected_subtitle.path.name} into {video_path.name}"
+        subtitle_files_str = ', '.join(sub.path.name for sub in subtitle_files)
+        return True, f"Successfully merged {subtitle_files_str} into {video_path.name}"
     else:
-        return False, f"Failed to merge {selected_subtitle.path.name} into {video_path.name}"
+        subtitle_files_str = ', '.join(sub.path.name for sub in subtitle_files)
+        return False, f"Failed to merge {subtitle_files_str} into {video_path.name}"
 
 
 def process_videos(
@@ -400,7 +544,9 @@ def process_videos(
 
             if success:
                 stats.processed_videos += 1
-                if subtitle_files[0].extension.lower() == '.ass' and font_attachments:
+                stats.total_subtitle_tracks += len(subtitle_files)
+                # Count font embedding if any subtitle is ASS format
+                if any(sub.extension.lower() == '.ass' for sub in subtitle_files) and font_attachments:
                     stats.fonts_embedded += len(font_attachments)
             else:
                 stats.failed_videos += 1
@@ -432,7 +578,9 @@ def process_videos(
                     success, message = future.result()
                     if success:
                         stats.processed_videos += 1
-                        if subtitle_files[0].extension.lower() == '.ass' and font_attachments:
+                        stats.total_subtitle_tracks += len(subtitle_files)
+                        # Count font embedding if any subtitle is ASS format
+                        if any(sub.extension.lower() == '.ass' for sub in subtitle_files) and font_attachments:
                             stats.fonts_embedded += len(font_attachments)
                     else:
                         stats.failed_videos += 1
