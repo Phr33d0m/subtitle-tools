@@ -50,7 +50,7 @@ brew install mkvtoolnix
 
 **VideOCR CLI:**
 
-- Download from [VideOCR Releases](https://github.com/your-videocr-repo)
+- Download from [VideOCR Releases](https://github.com/timminator/VideOCR/releases)
 - Update the `BINARY_PATH` constant in `ocrp.py` to point to your videocr-cli binary
 
 ## Installation
@@ -58,7 +58,7 @@ brew install mkvtoolnix
 1. Clone this repository:
 
 ```bash
-git clone https://github.com/yourusername/subs-tools.git
+git clone https://github.com/Phr33d0m/subtitle-tools.git
 cd subs-tools
 ```
 
