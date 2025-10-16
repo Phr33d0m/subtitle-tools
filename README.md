@@ -1,6 +1,6 @@
 # Subtitle and MKV Processing Tools
 
-A collection of highly opinionated Python scripts for processing video files, extracting subtitles, managing attachments, and performing OCR on hardcoded subtitles. These tools are designed to work with MKV containers and various subtitle formats.
+A collection of highly opinionated Python scripts for parallel processing video files, extracting subtitles, managing attachments, and performing OCR on hardcoded subtitles. These tools are designed to work with MKV containers and various subtitle formats.
 
 ## Table of Contents
 
