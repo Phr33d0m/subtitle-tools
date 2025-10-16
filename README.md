@@ -59,7 +59,7 @@ brew install mkvtoolnix
 
 ```bash
 git clone https://github.com/Phr33d0m/subtitle-tools.git
-cd subs-tools
+cd subtitle-tools
 ```
 
 2. Make the scripts executable:
@@ -72,6 +72,12 @@ chmod +x *.py
 
 ```bash
 export PATH="$(pwd):$PATH"
+```
+
+OR, symlink what you need to somewhere in your PATH:
+
+```bash
+ln -s /path/to/subtitle-tools/submerge.py /usr/local/bin/submerge
 ```
 
 ## Tools
