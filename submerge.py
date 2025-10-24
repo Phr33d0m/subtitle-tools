@@ -103,6 +103,35 @@ LANGUAGE_CODE_MAPPING = {
     'per': 'per', 'fa': 'per',   # Persian variations
 }
 
+# Language code to language name mapping for track names
+# Only need to map standardized codes (3-letter and IETF) since all variants are normalized by LANGUAGE_CODE_MAPPING
+LANGUAGE_NAME_MAPPING = {
+    # ISO 639-2/T (3-letter codes)
+    'eng': 'English', 'spa': 'Spanish', 'fre': 'French', 'ger': 'German', 'ita': 'Italian',
+    'por': 'Portuguese', 'rus': 'Russian', 'jpn': 'Japanese', 'kor': 'Korean', 'ara': 'Arabic',
+    'hin': 'Hindi', 'tha': 'Thai', 'vie': 'Vietnamese', 'bul': 'Bulgarian', 'cze': 'Czech',
+    'dan': 'Danish', 'gre': 'Greek', 'heb': 'Hebrew', 'hun': 'Hungarian', 'dut': 'Dutch',
+    'nor': 'Norwegian', 'pol': 'Polish', 'rum': 'Romanian', 'swe': 'Swedish', 'tur': 'Turkish',
+    'ukr': 'Ukrainian', 'chi': 'Chinese', 'per': 'Persian', 'urd': 'Urdu', 'ben': 'Bengali',
+    'pan': 'Punjabi', 'tam': 'Tamil', 'tel': 'Telugu', 'mal': 'Malayalam', 'kan': 'Kannada',
+    'guj': 'Gujarati', 'mar': 'Marathi', 'nep': 'Nepali', 'sin': 'Sinhala', 'bur': 'Burmese',
+    'khm': 'Khmer', 'lao': 'Lao', 'geo': 'Georgian', 'amh': 'Amharic', 'swa': 'Swahili',
+    'zul': 'Zulu', 'afr': 'Afrikaans', 'ice': 'Icelandic', 'mlt': 'Maltese', 'wel': 'Welsh',
+    'gle': 'Irish', 'gla': 'Scottish Gaelic', 'baq': 'Basque', 'cat': 'Catalan', 'glg': 'Galician',
+    'srp': 'Serbian', 'hrv': 'Croatian', 'slv': 'Slovenian', 'est': 'Estonian', 'lav': 'Latvian',
+    'lit': 'Lithuanian', 'fin': 'Finnish', 'mac': 'Macedonian', 'alb': 'Albanian', 'arm': 'Armenian',
+    'aze': 'Azerbaijani', 'kaz': 'Kazakh', 'kir': 'Kyrgyz', 'uzb': 'Uzbek', 'tgk': 'Tajik',
+    'mon': 'Mongolian', 'tib': 'Tibetan', 'dzo': 'Dzongkha', 'nya': 'Chichewa', 'sna': 'Shona',
+    'yor': 'Yoruba', 'ibo': 'Igbo', 'hau': 'Hausa', 'som': 'Somali', 'tir': 'Tigrinya',
+
+    # IETF language tags that mkvmerge accepts directly
+    'zh-Hans': 'Chinese (Simplified)', 'zh-Hant': 'Chinese (Traditional)',
+    'pt-BR': 'Portuguese (Brazil)', 'pt-PT': 'Portuguese (Portugal)',
+
+    # Special case for undetermined language
+    'und': 'Unknown',
+}
+
 
 # ------------------------------ Data Structures ------------------------------ #
 
@@ -287,6 +316,37 @@ def detect_language_code(language_code: str) -> str:
     return "und"
 
 
+def get_language_name(language_code: str) -> str:
+    """Get the full language name from a language code."""
+    if not language_code:
+        return "Unknown"
+
+    # Look up in the language name mapping
+    language_name = LANGUAGE_NAME_MAPPING.get(language_code)
+    if language_name:
+        return language_name
+
+    # Try lowercase version
+    language_name = LANGUAGE_NAME_MAPPING.get(language_code.lower())
+    if language_name:
+        return language_name
+
+    # For unrecognized codes, try to be helpful
+    if language_code == "und":
+        return "Unknown"
+
+    # If it's an IETF tag, try the base part
+    if '-' in language_code:
+        base_code = language_code.split('-')[0]
+        language_name = LANGUAGE_NAME_MAPPING.get(base_code.lower())
+        if language_name:
+            return language_name
+
+    # Default to the code itself if we can't find a name
+    logging.debug("Could not find language name for: %s", language_code)
+    return language_code.title()
+
+
 # ------------------------------ Core Functions ------------------------------ #
 
 def find_video_files(root_dir: Path) -> List[Path]:
@@ -306,13 +366,23 @@ def find_subtitle_files(base_path: Path) -> List[SubtitleFile]:
     # Get the base name without extension
     base_name = base_path.name
 
-    # Look for all subtitle files in the same directory
-    for ext in DEFAULT_SUBTITLE_EXTENSIONS:
-        for sub_path in base_path.parent.glob(f"*{ext}"):
-            # Try to create subtitle file with both compound and simple extensions
-            subtitle_file = SubtitleFile.from_path(sub_path, base_name)
-            if subtitle_file:
-                subtitle_files.append(subtitle_file)
+    # Use a more robust approach: find all files in directory and check if they start with our base name
+    # This avoids issues with special characters in filenames (brackets, etc.)
+    for file_path in base_path.parent.iterdir():
+        if not file_path.is_file():
+            continue
+
+        # Check if the filename starts with our base name followed by a dot
+        if file_path.name.startswith(f"{base_name}."):
+            # Skip the video file itself
+            if file_path == base_path:
+                continue
+
+            # Only include subtitle files
+            if file_path.suffix in DEFAULT_SUBTITLE_EXTENSIONS:
+                subtitle_file = SubtitleFile.from_path(file_path, base_name)
+                if subtitle_file:
+                    subtitle_files.append(subtitle_file)
 
     # Sort by priority (higher first), then by language code, then by path for consistency
     subtitle_files.sort(
@@ -374,7 +444,8 @@ def merge_video_with_subtitles(
     for i, subtitle_file in enumerate(subtitle_files):
         track_id = str(i)
         language_code = normalize_language_code(subtitle_file.language_code)
-        display_name = f"{subtitle_file.language_code.upper()} {subtitle_file.extension[1:].upper()}"
+        language_name = get_language_name(subtitle_file.language_code)
+        display_name = language_name
 
         cmd.extend([
             '--language', f'{track_id}:{language_code}',
@@ -446,7 +517,7 @@ def merge_video_with_subtitles(
                     backup_sub.unlink()
 
             subtitle_names = [
-                f"{sub.language_code.upper()} ({sub.extension[1:]})" for sub in subtitle_files]
+                get_language_name(sub.language_code) for sub in subtitle_files]
             logging.info("✓ Created: %s with subtitles: %s",
                          output_path, ', '.join(subtitle_names))
             return True
@@ -491,7 +562,7 @@ def process_single_video(
 
     # Log all found subtitle files
     subtitle_names = [
-        f"{sub.language_code.upper()} ({sub.extension[1:]})" for sub in subtitle_files]
+        get_language_name(sub.language_code) for sub in subtitle_files]
     logging.info("Processing %s with %d subtitle(s): %s", video_path.name,
                  len(subtitle_files), ', '.join(subtitle_names))
 
