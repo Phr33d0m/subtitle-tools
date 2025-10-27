@@ -608,6 +608,9 @@ def merge_video_with_subtitles(
         mode: Merge mode - 'replace' removes existing subtitles, 'append' preserves them
     """
 
+    if not subtitle_files:
+        return False
+
     base_name = video_path.stem
     output_path = video_path.parent / f"{base_name}.mkv"
     # Create temp file in the same directory to avoid cross-device link issues
@@ -985,69 +988,77 @@ Examples:
 
 def main() -> int:
     """Main entry point."""
-    args = parse_arguments()
+    try:
+        args = parse_arguments()
 
-    setup_logging(args.verbose)
+        setup_logging(args.verbose)
 
-    # Check dependencies
-    check_dependencies()
+        # Check dependencies
+        check_dependencies()
 
-    # Validate arguments
-    if args.parallel < 1:
-        logging.error("Number of parallel workers must be at least 1")
+        # Validate arguments
+        if args.parallel < 1:
+            logging.error("Number of parallel workers must be at least 1")
+            return 1
+
+        # Determine root directory and validate path
+        input_path = Path(args.path).resolve()
+
+        if not (input_path.is_dir() or is_video_file(input_path)):
+            logging.error("Path must be a directory or a video file: %s", input_path)
+            return 1
+
+        # Determine root directory for font collection
+        if input_path.is_dir():
+            root_dir = input_path
+            logging.info("Processing directory: %s", root_dir)
+        else:
+            root_dir = input_path.parent
+            logging.info("Processing single video file: %s", input_path)
+
+        if args.dry_run:
+            logging.info("DRY RUN MODE - No files will be modified")
+
+        if args.parallel > 1:
+            logging.info("Using %d parallel workers", args.parallel)
+
+        # Collect font attachments
+        font_attachments = collect_font_attachments(root_dir, args.recursive)
+
+        # Find video files
+        if input_path.is_dir():
+            video_files = find_video_files(root_dir, args.recursive)
+            if not video_files:
+                logging.info("No video files found in %s", root_dir)
+                return 0
+            logging.info("Found %d video file(s) to process", len(video_files))
+        else:
+            video_files = [input_path]
+            logging.info("Processing 1 video file")
+
+        # Log the selected mode
+        logging.info("Using %s mode for subtitle processing", args.mode)
+
+        # Process videos
+        stats = process_videos(
+            video_files=video_files,
+            font_attachments=font_attachments,
+            max_workers=args.parallel,
+            dry_run=args.dry_run,
+            mode=args.mode
+        )
+
+        # Print final statistics
+        logging.info(str(stats))
+
+        return 0 if stats.failed_videos == 0 else 1
+
+    except KeyboardInterrupt:
+        logging.error("Operation interrupted by user")
         return 1
-
-    # Determine root directory and validate path
-    input_path = Path(args.path).resolve()
-
-    if not (input_path.is_dir() or is_video_file(input_path)):
-        logging.error("Path must be a directory or a video file: %s", input_path)
+    except Exception as e:
+        logging.error("Unexpected error: %s", e)
         return 1
-
-    # Determine root directory for font collection
-    if input_path.is_dir():
-        root_dir = input_path
-        logging.info("Processing directory: %s", root_dir)
-    else:
-        root_dir = input_path.parent
-        logging.info("Processing single video file: %s", input_path)
-
-    if args.dry_run:
-        logging.info("DRY RUN MODE - No files will be modified")
-
-    if args.parallel > 1:
-        logging.info("Using %d parallel workers", args.parallel)
-
-    # Collect font attachments
-    font_attachments = collect_font_attachments(root_dir, args.recursive)
-
-    # Find video files
-    if input_path.is_dir():
-        video_files = find_video_files(root_dir, args.recursive)
-        if not video_files:
-            logging.info("No video files found in %s", root_dir)
-            return 0
-        logging.info("Found %d video file(s) to process", len(video_files))
-    else:
-        video_files = [input_path]
-        logging.info("Processing 1 video file")
-
-    # Log the selected mode
-    logging.info("Using %s mode for subtitle processing", args.mode)
-
-    # Process videos
-    stats = process_videos(
-        video_files=video_files,
-        font_attachments=font_attachments,
-        max_workers=args.parallel,
-        dry_run=args.dry_run,
-        mode=args.mode
-    )
-
-    # Print final statistics
-    logging.info(str(stats))
-
-    return 0 if stats.failed_videos == 0 else 1
 
 
 if __name__ == "__main__":
