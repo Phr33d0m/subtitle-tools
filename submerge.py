@@ -49,7 +49,7 @@ LANGUAGE_CODE_MAPPING = {
     'pt': 'por', 'ru': 'rus', 'ja': 'jpn', 'ko': 'kor', 'ar': 'ara',
     'hi': 'hin', 'th': 'tha', 'vi': 'vie', 'bg': 'bul', 'cs': 'cze',
     'da': 'dan', 'el': 'gre', 'he': 'heb', 'hu': 'hun', 'nl': 'dut',
-    'no': 'nor', 'pl': 'pol', 'ro': 'rum', 'sv': 'swe', 'tr': 'tur',
+    'no': 'nor', 'pl': 'pol', 'ro': 'rum', 'se': 'swe', 'sv': 'swe', 'tr': 'tur',
     'uk': 'ukr', 'zh': 'chi', 'fa': 'per', 'ur': 'urd', 'bn': 'ben',
     'pa': 'pan', 'ta': 'tam', 'te': 'tel', 'ml': 'mal', 'kn': 'kan',
     'gu': 'guj', 'mr': 'mar', 'ne': 'nep', 'si': 'sin', 'my': 'bur',
@@ -169,6 +169,10 @@ class SubtitleFile:
             if potential_base_name == base_name:
                 # This is a compound extension with language code
                 detected_language = detect_language_code(potential_lang_code)
+                if detected_language is None:
+                    logging.info("Ignoring subtitle file with unmapped language code '%s': %s",
+                               potential_lang_code, path.name)
+                    return None
                 return cls(
                     path=path,
                     language_code=detected_language,
@@ -180,6 +184,10 @@ class SubtitleFile:
             # General compound extension case (backward compatibility)
             language_code = parts[-1]
             detected_language = detect_language_code(language_code)
+            if detected_language is None:
+                logging.info("Ignoring subtitle file with unmapped language code '%s': %s",
+                           language_code, path.name)
+                return None
             return cls(
                 path=path,
                 language_code=detected_language,
@@ -272,6 +280,33 @@ def get_mime_type(file_path: Path) -> str:
         return "application/octet-stream"
 
 
+def detect_subtitle_encoding(subtitle_path: Path) -> str:
+    """Detect subtitle file encoding using the 'file' command."""
+    try:
+        result = subprocess.run(
+            ['file', '--brief', '--mime-encoding', str(subtitle_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        encoding = result.stdout.strip()
+        # Map common encodings to mkvmerge-compatible names
+        encoding_map = {
+            'iso-8859-1': 'ISO-8859-1',
+            'iso-8859-15': 'ISO-8859-1',  # Western European
+            'utf-8': 'UTF-8',
+            'us-ascii': 'UTF-8',  # ASCII is compatible with UTF-8
+            'unknown-8bit': 'ISO-8859-1',  # Most unknown 8-bit encodings are Latin variants
+            'non-iso': 'ISO-8859-1',  # Fallback for non-ISO encodings
+        }
+        return encoding_map.get(encoding.lower(), 'UTF-8')
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logging.debug("Failed to detect encoding for %s: %s, assuming UTF-8",
+                     subtitle_path.name, e)
+        return "UTF-8"
+
+
 def normalize_language_code(language_code: str) -> str:
     """Normalize language code for mkvmerge."""
     # For IETF tags like zh-Hans, pt-BR, mkvmerge accepts them as-is
@@ -280,7 +315,7 @@ def normalize_language_code(language_code: str) -> str:
     return language_code.strip()
 
 
-def detect_language_code(language_code: str) -> str:
+def detect_language_code(language_code: str) -> Optional[str]:
     """Detect and normalize language code from various formats."""
     if not language_code:
         return "und"  # Undetermined language
@@ -310,10 +345,10 @@ def detect_language_code(language_code: str) -> str:
         logging.debug("Using IETF language tag: %s", normalized_code)
         return normalized_code
 
-    # Default to undetermined
+    # For completely unrecognized codes, return None to indicate unmapped
     logging.debug(
-        "Could not identify language code: %s -> using 'und'", language_code)
-    return "und"
+        "Could not identify language code: %s -> ignoring file", language_code)
+    return None
 
 
 def get_language_name(language_code: str) -> str:
@@ -347,14 +382,22 @@ def get_language_name(language_code: str) -> str:
     return language_code.title()
 
 
+def is_video_file(file_path: Path) -> bool:
+    """Check if a file is a supported video file."""
+    return file_path.is_file() and file_path.suffix in DEFAULT_VIDEO_EXTENSIONS
+
+
 # ------------------------------ Core Functions ------------------------------ #
 
-def find_video_files(root_dir: Path) -> List[Path]:
-    """Find all video files in the given directory tree."""
+def find_video_files(root_dir: Path, recursive: bool = False) -> List[Path]:
+    """Find all video files in the given directory."""
     video_files = []
 
     for ext in DEFAULT_VIDEO_EXTENSIONS:
-        video_files.extend(root_dir.rglob(f"*{ext}"))
+        if recursive:
+            video_files.extend(root_dir.rglob(f"*{ext}"))
+        else:
+            video_files.extend(root_dir.glob(f"*{ext}"))
 
     return sorted(video_files)
 
@@ -364,7 +407,7 @@ def find_subtitle_files(base_path: Path) -> List[SubtitleFile]:
     subtitle_files = []
 
     # Get the base name without extension
-    base_name = base_path.name
+    base_name = base_path.stem
 
     # Use a more robust approach: find all files in directory and check if they start with our base name
     # This avoids issues with special characters in filenames (brackets, etc.)
@@ -391,7 +434,7 @@ def find_subtitle_files(base_path: Path) -> List[SubtitleFile]:
     return subtitle_files
 
 
-def collect_font_attachments(root_dir: Path) -> List[FontAttachment]:
+def collect_font_attachments(root_dir: Path, recursive: bool = False) -> List[FontAttachment]:
     """Collect font files from the Fonts directory."""
     fonts_dir = root_dir / FONTS_DIR_NAME
 
@@ -405,7 +448,8 @@ def collect_font_attachments(root_dir: Path) -> List[FontAttachment]:
     font_extensions = {'.ttf', '.otf', '.ttc', '.woff',
                        '.woff2', '.TTF', '.OTF', '.TTC', '.WOFF', '.WOFF2'}
 
-    for font_path in fonts_dir.rglob('*'):
+    font_search = fonts_dir.rglob('*') if recursive else fonts_dir.glob('*')
+    for font_path in font_search:
         if font_path.is_file() and font_path.suffix in font_extensions:
             mime_type = get_mime_type(font_path)
             font_attachments.append(FontAttachment(
@@ -418,34 +462,219 @@ def collect_font_attachments(root_dir: Path) -> List[FontAttachment]:
     return font_attachments
 
 
+def get_existing_font_attachments(video_path: Path) -> List[str]:
+    """Get list of font attachment names from an existing video file.
+
+    Returns:
+        List of font attachment names (without paths) found in the video file.
+    """
+    try:
+        # Use mkvmerge to identify attachments in the video file
+        result = subprocess.run(
+            ['mkvmerge', '--identify', str(video_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        existing_fonts = []
+        for line in result.stdout.splitlines():
+            # Look for attachment lines that contain font MIME types
+            if 'attachment' in line and ('font' in line.lower() or
+                                       'application/x-truetype-font' in line or
+                                       'application/vnd.ms-opentype' in line or
+                                       'application/font-woff' in line or
+                                       'application/font-sfnt' in line):
+                # Extract attachment ID and name if available
+                # Format: 'File ID X: attachment_ID: MIME_type: file_name'
+                if ':' in line:
+                    parts = line.split(':')
+                    if len(parts) >= 4:
+                        attachment_name = parts[-1].strip()
+                        existing_fonts.append(attachment_name)
+
+        if existing_fonts:
+            logging.debug("Found %d existing font attachment(s) in %s: %s",
+                         len(existing_fonts), video_path.name, ', '.join(existing_fonts))
+        else:
+            logging.debug("No existing font attachments found in %s", video_path.name)
+
+        return existing_fonts
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logging.debug("Failed to identify existing attachments in %s: %s",
+                     video_path.name, e)
+        return []
+
+
+def get_subtitle_track_ids(video_path: Path) -> List[str]:
+    """Get list of subtitle track IDs from an existing video file.
+
+    Returns:
+        List of subtitle track IDs found in the video file.
+    """
+    try:
+        # Use mkvmerge to identify tracks in the video file
+        result = subprocess.run(
+            ['mkvmerge', '--identify', str(video_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        subtitle_track_ids = []
+        for line in result.stdout.splitlines():
+            # Look for subtitle track lines
+            if 'Track ID' in line and 'subtitles' in line:
+                # Extract track ID from line like: 'Track ID 2: subtitles (SubRip)'
+                if ':' in line:
+                    parts = line.split(':')
+                    if len(parts) >= 1:
+                        track_part = parts[0].strip()
+                        if 'Track ID' in track_part:
+                            track_id = track_part.replace('Track ID', '').strip()
+                            subtitle_track_ids.append(track_id)
+
+        if subtitle_track_ids:
+            logging.debug("Found %d existing subtitle track(s) in %s: %s",
+                         len(subtitle_track_ids), video_path.name, ', '.join(subtitle_track_ids))
+        else:
+            logging.debug("No existing subtitle tracks found in %s", video_path.name)
+
+        return subtitle_track_ids
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        logging.debug("Failed to identify existing tracks in %s: %s",
+                     video_path.name, e)
+        return []
+
+
+def should_attach_font(font_path: Path, existing_fonts: List[str], mode: str) -> bool:
+    """Determine if a font should be attached based on mode and existing fonts.
+
+    Args:
+        font_path: Path to the font file to potentially attach
+        existing_fonts: List of existing font attachment names in the video
+        mode: Merge mode ('append' or 'replace')
+
+    Returns:
+        True if the font should be attached, False otherwise
+    """
+    font_name = font_path.name
+
+    if mode == "replace":
+        # In replace mode, always attach external fonts (replacing any existing ones)
+        return True
+
+    elif mode == "append":
+        # In append mode, avoid duplicates
+        # Check if this font (by name) already exists in the video
+        if font_name in existing_fonts:
+            logging.debug("Font %s already exists in video, skipping (append mode)", font_name)
+            return False
+
+        # Also check for similar base names (ignoring file extensions)
+        font_base_name = font_path.stem
+        for existing_font in existing_fonts:
+            existing_base = Path(existing_font).stem
+            if font_base_name.lower() == existing_base.lower():
+                logging.debug("Font %s is similar to existing font %s, skipping (append mode)",
+                             font_name, existing_font)
+                return False
+
+        return True
+
+    return False
+
+
 def merge_video_with_subtitles(
     video_path: Path,
     subtitle_files: List[SubtitleFile],
     font_attachments: List[FontAttachment],
     temp_dir: Optional[Path],
-    dry_run: bool = False
+    dry_run: bool = False,
+    mode: str = "replace"
 ) -> bool:
-    """Merge video file with multiple subtitle tracks using mkvmerge."""
+    """Merge video file with multiple subtitle tracks using mkvmerge.
+
+    Args:
+        video_path: Path to the input video file
+        subtitle_files: List of subtitle files to merge
+        font_attachments: List of font files to attach
+        temp_dir: Temporary directory (currently unused)
+        dry_run: If True, only log the command without executing
+        mode: Merge mode - 'replace' removes existing subtitles, 'append' preserves them
+    """
 
     base_name = video_path.stem
     output_path = video_path.parent / f"{base_name}.mkv"
     # Create temp file in the same directory to avoid cross-device link issues
     temp_output = output_path.with_suffix('.mkv.temp')
 
+    # Log the mode being used
+    logging.info("Processing %s in %s mode", video_path.name, mode)
+
     # Build mkvmerge command
     cmd = [
         'mkvmerge',
         '-q',  # Quiet mode
-        '-o', str(temp_output),
-        '--no-subtitles', str(video_path)
+        '-o', str(temp_output)
     ]
+
+    # Determine if we should preserve existing fonts in replace mode
+    preserve_existing_fonts = False
+    has_external_fonts = bool(font_attachments)
+    has_ass_subtitles = any(sub.extension.lower() == '.ass' for sub in subtitle_files)
+
+    # Get existing subtitle track IDs and font attachments (needed for font preservation logic)
+    existing_subtitle_track_ids = []
+    existing_fonts = []
+
+    if mode == "replace" and has_ass_subtitles and not has_external_fonts:
+        # Get existing subtitle track IDs to exclude them while preserving fonts
+        existing_subtitle_track_ids = get_subtitle_track_ids(video_path)
+        existing_fonts = get_existing_font_attachments(video_path)
+        preserve_existing_fonts = True
+        logging.info("Replace mode: No external fonts found, preserving existing fonts")
+        # Use video without --no-subtitles to preserve attachments (fonts)
+        cmd.append(str(video_path))
+        # Note: We cannot easily exclude existing subtitle tracks while preserving fonts
+        # with standard mkvmerge flags. In this case, we'll append new subtitles to existing ones
+        logging.debug("Appending new subtitles to existing ones while preserving fonts (font-preserve replace mode)")
+        if existing_subtitle_track_ids:
+            logging.info("Note: Existing subtitle tracks (%s) will be preserved along with fonts",
+                         ', '.join(existing_subtitle_track_ids))
+
+    elif mode == "replace" and has_ass_subtitles and has_external_fonts:
+        logging.info("Replace mode: External fonts available, replacing existing fonts")
+        cmd.extend(['--no-subtitles', str(video_path)])
+        logging.debug("Removing existing subtitles and attachments (full replace mode)")
+
+    elif mode == "replace":
+        # No ASS subtitles, use normal --no-subtitles behavior
+        cmd.extend(['--no-subtitles', str(video_path)])
+        logging.debug("Removing existing subtitles (no ASS subtitles, replace mode)")
+
+    else:  # append mode
+        cmd.append(str(video_path))
+        logging.debug("Preserving existing subtitles (append mode)")
+        existing_fonts = get_existing_font_attachments(video_path)
 
     # Add all subtitle tracks
     for i, subtitle_file in enumerate(subtitle_files):
-        track_id = str(i)
+        track_id = "0"  # All standalone subtitle files only have track 0
         language_code = normalize_language_code(subtitle_file.language_code)
         language_name = get_language_name(subtitle_file.language_code)
         display_name = language_name
+
+        # Detect and set subtitle encoding if needed
+        encoding = detect_subtitle_encoding(subtitle_file.path)
+        if encoding != "UTF-8":
+            cmd.extend(['--subtitle-charset', f'{track_id}:{encoding}'])
+            logging.debug("Using encoding %s for subtitle file %s",
+                         encoding, subtitle_file.path.name)
 
         cmd.extend([
             '--language', f'{track_id}:{language_code}',
@@ -464,12 +693,23 @@ def merge_video_with_subtitles(
     has_ass_subtitles = any(sub.extension.lower() ==
                             '.ass' for sub in subtitle_files)
     if has_ass_subtitles and font_attachments:
-        logging.info("Embedding %d font(s) into MKV", len(font_attachments))
+        # Filter fonts based on mode and existing fonts
+        fonts_to_attach = []
         for font in font_attachments:
-            cmd.extend([
-                '--attachment-mime-type', font.mime_type,
-                '--attach-file', str(font.path)
-            ])
+            if should_attach_font(font.path, existing_fonts, mode):
+                fonts_to_attach.append(font)
+
+        if fonts_to_attach:
+            logging.info("Embedding %d font(s) into MKV (%s mode)",
+                         len(fonts_to_attach), mode)
+            for font in fonts_to_attach:
+                cmd.extend([
+                    '--attachment-mime-type', font.mime_type,
+                    '--attach-file', str(font.path)
+                ])
+                logging.debug("Attaching font: %s", font.path.name)
+        else:
+            logging.info("No additional fonts to attach (%s mode)", mode)
 
     if dry_run:
         logging.info("DRY RUN: Would execute: %s", ' '.join(cmd))
@@ -553,9 +793,19 @@ def process_single_video(
     subtitle_files: List[SubtitleFile],
     font_attachments: List[FontAttachment],
     temp_dir: Optional[Path],
-    dry_run: bool = False
+    dry_run: bool = False,
+    mode: str = "replace"
 ) -> Tuple[bool, str]:
-    """Process a single video file with all matching subtitle tracks."""
+    """Process a single video file with all matching subtitle tracks.
+
+    Args:
+        video_path: Path to the video file
+        subtitle_files: List of subtitle files to merge
+        font_attachments: List of font files to attach
+        temp_dir: Temporary directory (currently unused)
+        dry_run: If True, only log operations without executing
+        mode: Merge mode - 'replace' removes existing subtitles, 'append' preserves them
+    """
 
     if not subtitle_files:
         return False, f"No matching subtitle files found for {video_path.name}"
@@ -571,7 +821,8 @@ def process_single_video(
         subtitle_files=subtitle_files,
         font_attachments=font_attachments,
         temp_dir=temp_dir,
-        dry_run=dry_run
+        dry_run=dry_run,
+        mode=mode
     )
 
     if success:
@@ -586,7 +837,8 @@ def process_videos(
     video_files: List[Path],
     font_attachments: List[FontAttachment],
     max_workers: int = 1,
-    dry_run: bool = False
+    dry_run: bool = False,
+    mode: str = "replace"
 ) -> ProcessingStats:
     """Process multiple video files with optional parallelization."""
 
@@ -610,7 +862,7 @@ def process_videos(
                 continue
 
             success, message = process_single_video(
-                video_path, subtitle_files, font_attachments, None, dry_run
+                video_path, subtitle_files, font_attachments, None, dry_run, mode
             )
 
             if success:
@@ -639,7 +891,7 @@ def process_videos(
 
                 future = executor.submit(
                     process_single_video,
-                    video_path, subtitle_files, font_attachments, None, dry_run
+                    video_path, subtitle_files, font_attachments, None, dry_run, mode
                 )
                 future_to_video[future] = (video_path, subtitle_files)
 
@@ -673,11 +925,18 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s                          # Process current directory
-  %(prog)s /path/to/videos          # Process specific directory
+  %(prog)s                          # Process current directory (non-recursive) - replace mode
+  %(prog)s --mode append           # Process current directory, preserving existing subtitles
+  %(prog)s /path/to/videos          # Process specific directory (non-recursive)
+  %(prog)s /path/to/video.mp4       # Process single video file
+  %(prog)s Movie.mkv                # Process single video file in current dir
   %(prog)s -p 4                     # Use 4 parallel workers
   %(prog)s --dry-run                # Preview operations without executing
   %(prog)s -v                       # Verbose output
+  %(prog)s -r                       # Process current directory recursively
+  %(prog)s --recursive /path/to/videos  # Process directory and all subdirectories
+  %(prog)s --mode replace /path/to/video.mkv  # Replace existing subtitles (default)
+  %(prog)s --mode append /path/to/video.mkv   # Append new subtitles, keep existing ones
         """
     )
 
@@ -685,7 +944,7 @@ Examples:
         'path',
         nargs='?',
         default='.',
-        help='Directory containing video files (default: current directory)'
+        help='Directory containing video files, or a single video file (default: current directory)'
     )
 
     parser.add_argument(
@@ -708,6 +967,19 @@ Examples:
         help='Enable verbose logging'
     )
 
+    parser.add_argument(
+        '-r', '--recursive',
+        action='store_true',
+        help='Search for video files recursively in subdirectories'
+    )
+
+    parser.add_argument(
+        '--mode',
+        choices=['append', 'replace'],
+        default='replace',
+        help='Subtitle merge mode: replace (default) removes existing subtitles, append preserves existing subtitles'
+    )
+
     return parser.parse_args()
 
 
@@ -725,37 +997,51 @@ def main() -> int:
         logging.error("Number of parallel workers must be at least 1")
         return 1
 
-    # Determine root directory
-    root_dir = Path(args.path).resolve()
-    if not root_dir.is_dir():
-        logging.error("Path must be a directory: %s", root_dir)
+    # Determine root directory and validate path
+    input_path = Path(args.path).resolve()
+
+    if not (input_path.is_dir() or is_video_file(input_path)):
+        logging.error("Path must be a directory or a video file: %s", input_path)
         return 1
+
+    # Determine root directory for font collection
+    if input_path.is_dir():
+        root_dir = input_path
+        logging.info("Processing directory: %s", root_dir)
+    else:
+        root_dir = input_path.parent
+        logging.info("Processing single video file: %s", input_path)
 
     if args.dry_run:
         logging.info("DRY RUN MODE - No files will be modified")
 
-    logging.info("Processing directory: %s", root_dir)
     if args.parallel > 1:
         logging.info("Using %d parallel workers", args.parallel)
 
     # Collect font attachments
-    font_attachments = collect_font_attachments(root_dir)
+    font_attachments = collect_font_attachments(root_dir, args.recursive)
 
     # Find video files
-    video_files = find_video_files(root_dir)
+    if input_path.is_dir():
+        video_files = find_video_files(root_dir, args.recursive)
+        if not video_files:
+            logging.info("No video files found in %s", root_dir)
+            return 0
+        logging.info("Found %d video file(s) to process", len(video_files))
+    else:
+        video_files = [input_path]
+        logging.info("Processing 1 video file")
 
-    if not video_files:
-        logging.info("No video files found in %s", root_dir)
-        return 0
-
-    logging.info("Found %d video file(s) to process", len(video_files))
+    # Log the selected mode
+    logging.info("Using %s mode for subtitle processing", args.mode)
 
     # Process videos
     stats = process_videos(
         video_files=video_files,
         font_attachments=font_attachments,
         max_workers=args.parallel,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        mode=args.mode
     )
 
     # Print final statistics
