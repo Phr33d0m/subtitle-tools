@@ -1,24 +1,32 @@
 """
-Pytest fixtures and configuration for submerge tests.
+Global pytest configuration for subtitle processing tools.
 
-This module provides common fixtures, mocks, and helper functions
-used across all test modules.
+This module provides top-level configuration and imports shared
+fixtures from the shared directory.
 """
 
 import pytest
+import sys
 import tempfile
 import shutil
 from pathlib import Path
+from typing import List
 from unittest.mock import Mock, patch
-from typing import Dict, List
-import sys
-import os
 
-# Add the parent directory to Python path for importing submerge
+# Add the parent directory to Python path for importing tools
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import submerge modules for mocking
-import submerge
+# Import shared fixtures (avoiding conflicts with existing ones)
+from tests.shared.fixtures import (
+    mock_subprocess_success,
+    mock_subprocess_failure,
+    mock_encoding_utf8,
+    mock_encoding_iso8859,
+    mock_encoding_unknown,
+    complex_subtitle_setup,
+    MockSubtitleFile,
+    mock_subtitle_file_factory,
+)
 
 
 @pytest.fixture

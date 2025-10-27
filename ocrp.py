@@ -243,8 +243,8 @@ class VideoProcessor:
             for future in concurrent.futures.as_completed(futures):
                 completed += 1
                 if not self.config.quiet:
-                    print(
-                        f"\rProgress: {completed}/{len(video_files)}", end='', flush=True)
+                    self.logger.info(
+                        f"\rProgress: {completed}/{len(video_files)}")
 
         if not self.config.quiet:
             print()  # New line after progress
