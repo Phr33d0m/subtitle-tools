@@ -17,9 +17,12 @@ Key behaviors:
 - Canonicalizes [V4+ Styles] from the first file in the run and applies to later files.
 
 Usage:
-  python ass_qafix.py
-  python ass_qafix.py --inplace
-  python ass_qafix.py --keep-empty-text
+  python ass_qafix.py                                    # Process all .ass files in current directory
+  python ass_qafix.py --inplace                          # Process all files, overwriting originals
+  python ass_qafix.py --keep-empty-text                  # Process all files, keeping empty text
+  python ass_qafix.py file1.ass                           # Process single file
+  python ass_qafix.py file1.ass file2.ass                # Process multiple specific files
+  python ass_qafix.py --inplace file1.ass                 # Process single file, overwriting original
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set
 
 DIALOGUE_PREFIX = "Dialogue:"
@@ -640,11 +644,26 @@ def main() -> None:
                     help="Overwrite originals. Default: write *.fixed.ass.")
     ap.add_argument("--keep-empty-text", action="store_true",
                     help="Keep Dialogue lines with empty/artifact text.")
+    ap.add_argument("files", nargs="*",
+                    help="Specific .ASS files to process. If not provided, processes all .ass files in current directory.")
     args = ap.parse_args()
 
-    paths = sorted(glob.glob("*.ass"))
+    # Determine which files to process
+    if args.files:
+        # Use specific files provided by user
+        paths = []
+        for file_path in args.files:
+            path = Path(file_path)
+            if path.exists() and path.is_file() and path.suffix.lower() == '.ass':
+                paths.append(str(path))
+            else:
+                print(f"Warning: File not found or not an .ASS file: {file_path}", file=sys.stderr)
+    else:
+        # Default: process all .ass files in current directory
+        paths = sorted(glob.glob("*.ass"))
+
     if not paths:
-        print("No .ass files found in current directory.", file=sys.stderr)
+        print("No .ass files found to process.", file=sys.stderr)
         sys.exit(2)
 
     grand = QAStats()
