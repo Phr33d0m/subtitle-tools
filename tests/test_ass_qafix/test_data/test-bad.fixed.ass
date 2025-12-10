@@ -1,0 +1,33 @@
+[Script Info]
+Title: Real World Test - Bad Syntax
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,10,10,10,1
+Style: Custom,Times New Roman,18,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,1,0,100,100,0,0,1,2,0,2,5,5,5,1
+Style: Small,Arial,16,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,90,90,0,0,1,2,0,2,8,8,8,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:01:50.25,0:03:45.75,Default,,0,0,0,,Hello there! Welcome to our subtitle test.
+Dialogue: 0,0:04:10.50,0:06:20.80,Custom,,0,0,0,,This line has extra field,NTP,0,0,0,,This should be fixed
+Dialogue: 0,0:06:45.30,0:08:15.40,Default,,0,0,0,,This line is missing margins
+Dialogue: 0,0:08:30.15,0:10:05.60,Small,,0,0,0,,Small text here
+Dialogue: 0,0:25:30.45,0:11:20.70,Default,,0,0,0,,Missing hour in start time
+Dialogue: 0,0:11:20.70,0:25:45.85,Default,,0,0,0,,Missing hour in end time
+Dialogue: 0,0:12:05.90,0:13:45.25,Default,,0,0,0,,Line with - as only text
+Dialogue: 0,0:13:50.10,0:15:20.30,Custom,Speaker1,0,0,0,,"This is a quoted subtitle with punctuation!"
+Dialogue: 0,0:15:35.45,0:17:10.60,Default,,0,0,0,,Multiple\nlines\nwith\nbreaks
+Dialogue: 0,0:17:25.80,0:19:05.95,Small,,0,0,0,,Very small text at the end
+Dialogue: 0,0:19:20.15,0:21:00.30,Default,,0,0,0,,This line has no text content after fixes
+Dialogue: 0,0:22:30.45,Default,Default,,0,0,0,,Invalid start time
+Dialogue: 0,0:22:30.45,invalid_end,Default,,0,0,0,,Invalid end time
+Dialogue: 0,0:23:15.60,0:22:15.60,Default,,0,0,0,,End time before start time
+Dialogue: 0,0:24:00.75,0:25:45.90,Default,,0,0,0,,Normal subtitle with proper formatting
+Dialogue: 0,0:26:05.20,0:27:40.35,Custom,,0,0,0,,{Position}Text with positioning tags
+Dialogue: 0,0:28:10.45,0:29:35.65,Default,,0,0,0,,Extra zero in hour groups
+Dialogue: 0,0:30:00.00,0:31:45.25,Small,,0,0,0,,Last subtitle with different style
