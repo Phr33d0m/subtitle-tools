@@ -15,6 +15,14 @@ A collection of highly opinionated Python scripts for parallel processing video 
     - [subextract.py - Subtitle Extraction](#subextractpy---subtitle-extraction)
     - [subattachextract.py - Attachment Extraction](#subattachextractpy---attachment-extraction)
     - [subtimefix.py - Subtitle Timestamp Shifting](#subtimefixpy---subtitle-timestamp-shifting)
+    - [ass\_qafix.py - ASS Quality Assurance and Auto-Fixer](#ass_qafixpy---ass-quality-assurance-and-auto-fixer)
+    - [ass-header.py - ASS Header Replacement](#ass-headerpy---ass-header-replacement)
+    - [ass-credits.py - Opening/Ending Detection and Removal](#ass-creditspy---openingending-detection-and-removal)
+    - [ass-compare.py - ASS Timestamp Comparison](#ass-comparepy---ass-timestamp-comparison)
+    - [ass-clean.py - ASS File Issue Detection](#ass-cleanpy---ass-file-issue-detection)
+    - [sub-visualize.py - Brightness Threshold Estimation](#sub-visualizepy---brightness-threshold-estimation)
+    - [subs-collection.py - Subtitle Collection Builder](#subs-collectionpy---subtitle-collection-builder)
+    - [vids-info.py - Video Information Display](#vids-infopy---video-information-display)
   - [File Naming Conventions](#file-naming-conventions)
     - [Video Files](#video-files)
     - [Subtitle Files](#subtitle-files)
@@ -26,7 +34,21 @@ A collection of highly opinionated Python scripts for parallel processing video 
 
 - **Python 3.8+** (tested with Python 3.13, should work with prior versions)
 - **MKVToolNix** - Required for mkvmerge and mkvextract commands
-- **VideOCR CLI** - Required for OCR processing (only for ocrp.py)
+- **VideOCR** - Required for OCR processing (only for ocrp.py)
+- **FFmpeg/FFprobe** - Required for vids-info.py and sub-visualize.py
+
+**Python Dependencies:**
+
+```bash
+pip install rich rapidfuzz jieba3 pyenchant opencv-python numpy
+```
+
+- `rich` - Rich text formatting and progress displays
+- `rapidfuzz` - Fuzzy string matching for OCR variants
+- `jieba3` - Chinese word segmentation (for single character validation)
+- `pyenchant` - English dictionary (for short word validation)
+- `opencv-python` - Image processing (for sub-visualize.py)
+- `numpy` - Numerical operations (for sub-visualize.py)
 
 ### Installing External Dependencies
 
@@ -286,6 +308,212 @@ python3 subtimefix.py -t '6032' ./folder
 
 - `-t, --time`: Time shift in milliseconds (required). Positive values move timestamps forward, negative values move them backward.
 - `path`: Optional path to a .ass file or directory (default: current directory). If a directory is provided, processes all .ass files recursively.
+
+### ass_qafix.py - ASS Quality Assurance and Auto-Fixer
+
+Analyzes and automatically fixes common quality issues in ASS subtitle files. Designed for OCR-generated subtitles with comprehensive artifact detection.
+
+**Features:**
+
+- Removes duplicate dialogue lines
+- Merges consecutive dialogues with identical text (within 500ms gap)
+- Merges alternating OCR variant patterns (traditional/simplified Chinese)
+- Fixes overlapping timestamps between consecutive dialogues
+- Removes OCR artifacts (fake text, single digits, invalid characters)
+- Validates and normalizes style names against defined styles
+- Dictionary-based validation for single Chinese characters (jieba3) and short English words (enchant)
+- Rich table output with detailed per-file statistics
+
+**Usage:**
+
+```bash
+# Process all .ass files in current directory (creates .fixed.ass files)
+python3 ass_qafix.py
+
+# Process specific files
+python3 ass_qafix.py episode01.ass episode02.ass
+
+# Overwrite original files
+python3 ass_qafix.py --inplace
+
+# Preview changes without modifying files
+python3 ass_qafix.py --dry-run
+
+# Keep empty text lines (normally removed)
+python3 ass_qafix.py --keep-empty-text
+```
+
+**Arguments:**
+
+- `files`: Specific .ASS files to process (default: all .ass files in current directory)
+- `--inplace`: Overwrite originals instead of creating .fixed.ass files
+- `--keep-empty-text`: Keep dialogue lines with empty/artifact text
+- `--dry-run`: Analyze and report without making changes
+
+See `ass_qafix.rules.txt` for detailed documentation of all checks and fixes.
+
+### ass-header.py - ASS Header Replacement
+
+Replaces the header section (Script Info and V4+ Styles) of ASS files with a template header while preserving the Events section.
+
+**Features:**
+
+- Batch processing of all .ass files in current directory
+- Preserves all dialogue and event data
+- Ensures consistent styling across multiple files
+
+**Usage:**
+
+```bash
+# Replace headers in all .ass files using template
+python3 ass-header.py template_header.ass
+```
+
+**Arguments:**
+
+- `header_path`: Path to template file containing desired ASS header (Script Info + V4+ Styles)
+
+### ass-credits.py - Opening/Ending Detection and Removal
+
+Detects and removes repeating sequences (openings/endings) across multiple ASS subtitle files using a data-driven algorithm.
+
+**Features:**
+
+- Three-pass algorithm: Discovery, Cluster Analysis, Boundary Detection
+- Automatically learns time tolerances from data distribution
+- Fuzzy text matching for OCR variants (75% similarity threshold)
+- Requires content to appear in 50%+ of files to be considered "repeating"
+
+**Usage:**
+
+```bash
+# Analyze files for repeating sequences
+python3 ass-credits.py *.ass
+
+# Remove detected credits (modifies files)
+python3 ass-credits.py --remove *.ass
+```
+
+### ass-compare.py - ASS Timestamp Comparison
+
+Compares timestamps between ASS files to identify merged or split dialogue lines.
+
+**Features:**
+
+- Detects single timestamps that span multiple timestamps in another file
+- Color-coded output for easy identification
+- Useful for comparing OCR results with reference subtitles
+
+**Usage:**
+
+```bash
+# Compare two ASS files
+python3 ass-compare.py file1.ass file2.ass
+```
+
+### ass-clean.py - ASS File Issue Detection
+
+Finds ASS files with specific issues using regex pattern matching. Can remove dialogue lines before or after matched patterns.
+
+**Features:**
+
+- Regex-based pattern search across files
+- Remove dialogue lines before or after matches
+- Recursive directory processing
+- Dry-run mode for preview
+
+**Usage:**
+
+```bash
+# Find files matching a pattern
+python3 ass-clean.py "pattern" /path/to/files
+
+# Remove lines before the match
+python3 ass-clean.py --mode before "Opening Song" /path/to/files
+
+# Remove lines after the match
+python3 ass-clean.py --mode after "Ending Credits" /path/to/files
+
+# Preview without changes
+python3 ass-clean.py --dry-run --mode before "pattern" /path/to/files
+```
+
+### sub-visualize.py - Brightness Threshold Estimation
+
+Estimates optimal videocr brightness threshold for subtitle OCR and generates preview images for visual comparison.
+
+**Features:**
+
+- Uses Otsu's method on min-channel for threshold estimation
+- Generates preview images for a range of threshold values
+- Helps tune OCR parameters for different video sources
+
+**Usage:**
+
+```bash
+# Suggest brightness and generate previews
+python3 sub-visualize.py screenshot.png
+
+# Only print suggested value
+python3 sub-visualize.py screenshot.png --no-visualize
+
+# Custom span for preview range
+python3 sub-visualize.py screenshot.png --span 8
+
+# Custom base brightness
+python3 sub-visualize.py screenshot.png -b 130
+
+# Output to specific directory
+python3 sub-visualize.py screenshot.png --output-dir previews/
+```
+
+### subs-collection.py - Subtitle Collection Builder
+
+Builds a mirrored directory structure containing only subtitles and attachments extracted from MKV files.
+
+**Features:**
+
+- Extracts subtitles and attachments from MKV files
+- Creates mirrored directory structure
+- Removes directories with only hardsubbed content (no extractable subs)
+- Rich progress display and summary statistics
+- Optional ZIP creation for extracted content
+
+**Usage:**
+
+```bash
+# Build subtitle collection
+python3 subs-collection.py /path/to/videos /path/to/output
+
+# Preview without changes
+python3 subs-collection.py /path/to/videos /path/to/output --dry-run
+
+# Verbose output
+python3 subs-collection.py /path/to/videos /path/to/output --verbose
+```
+
+### vids-info.py - Video Information Display
+
+Displays video file information in a formatted table using ffprobe.
+
+**Features:**
+
+- Shows duration, resolution, and frame rate
+- Rich table output
+- Batch processing of multiple files
+
+**Usage:**
+
+```bash
+# Show info for all videos in current directory
+python3 vids-info.py
+
+# Show info for specific files
+python3 vids-info.py video1.mp4 video2.mkv
+
+# Show info for directory
+python3 vids-info.py /path/to/videos
+```
 
 ## File Naming Conventions
 
