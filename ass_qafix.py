@@ -5,14 +5,13 @@
 ASS QA & Auto-Fixer for professional subtitle workflows.
 
 Key behaviors:
-- Repairs AI hallucinations around timing fields BEFORE validation:
-  * Removes unexpected repeats of leading "0," or standalone "0:" between Layer and Start.
-  * Coalesces "0,MM:SS.cc" or "0:,MM:SS.cc" -> "0:MM:SS.cc".
-  * Collapses extra leading "0:" hour groups inside a time token: "0:0:06:15.60" -> "0:06:15.60".
-  * Ensures hour is present: if a Start or End looks like "MM:SS.cc", prepend "0:" -> "0:MM:SS.cc".
-- Validates timestamps after the above. If still invalid or End < Start, prints RED warning (keeps parsed values as-is).
 - Always de-duplicates Dialogue lines by default (same Start/End/Style/Text).
+- Merges consecutive dialogue lines with identical text and timestamps within 500ms gap.
+- Fixes overlapping timestamps between consecutive dialogues (within 0.02s threshold).
+- Validates and normalizes Style names against defined styles.
+- Sanitizes Layer to valid integer.
 - Trims Text; treats "-", "–", "—", "/" as empty OCR artifacts (removed unless --keep-empty-text).
+- Removes fake text (OCR artifacts like single digits, single letters, underscores).
 - Preserves commas/spaces inside Text (safe maxsplit).
 - Canonicalizes [V4+ Styles] from the first file in the run and applies to later files.
 
@@ -35,7 +34,16 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Any, Dict, List, Tuple, Optional, Set
+from rapidfuzz.distance import Levenshtein
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich import box
+
+# Dictionary-based OCR artifact detection
+# Note: enchant is imported lazily in _get_enchant_dict() to suppress libenchant warnings
+from jieba3.tok import BASE_MODEL_FREQ
 
 DIALOGUE_PREFIX = "Dialogue:"
 FORMAT_PREFIX = "Format:"
@@ -43,7 +51,16 @@ STYLES_SECTION_HDR = "[V4+ Styles]"
 EVENTS_SECTION_HDR = "[Events]"
 
 CANON_EVENTS_FIELDS = [
-    "Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text",
+    "Layer",
+    "Start",
+    "End",
+    "Style",
+    "Name",
+    "MarginL",
+    "MarginR",
+    "MarginV",
+    "Effect",
+    "Text",
 ]
 
 FAKE_TEXT_PATTERNS = [
@@ -56,12 +73,10 @@ ARTIFACT_EMPTY_TEXT = {"-", "–", "—", "/"}
 # Timestamp regex: H:MM:SS.cc (H = 1+ digits)
 TIME_RE = re.compile(r"^\d+:\d{2}:\d{2}\.\d{2}$")
 
-# A "minute-seconds.centiseconds" token used when AI omitted the hour (e.g., "06:15.60")
-MM_SS_CS_RE = re.compile(r"^\d{1,2}:\d{2}\.\d{2}$")
 
-# Terminal colors
-RED = "\033[31m"
-RESET = "\033[0m"
+# Minimum duration threshold for dialogue lines (250ms = 25 centiseconds)
+# Lines shorter than this are likely OCR merge errors
+MIN_DURATION_CS = 25
 
 
 @dataclass
@@ -70,23 +85,96 @@ class QAStats:
     dialogue_lines: int = 0
     fixed_lines: int = 0
     style_fixes: int = 0
-    format_padding_fixes: int = 0
-    format_collapse_fixes: int = 0
-    name_fixes: int = 0
-    margin_fixes: int = 0
-    effect_fixes: int = 0
     empty_text_removed: int = 0
     fake_text_removed: int = 0
     duplicates_removed: int = 0
-    time_warnings: int = 0  # invalid/missing or End<Start
+    consecutive_merges: int = 0  # merged consecutive dialogues with same text
+    alternating_merges: int = 0  # merged alternating OCR variant patterns
+    overlap_fixes: int = 0  # fixed overlapping timestamps between consecutive dialogues
+    short_duration_removed: int = 0  # dialogue lines with duration < 50ms removed
+
+
+def generate_results_table(reports: List[str], stats: QAStats, warning_files: Optional[Set[str]] = None) -> Panel:
+    """
+    Generate Rich table displaying ASS QA results with chi-to-eng styling.
+    Shows all individual statistics as separate columns with summary footer.
+
+    Args:
+        reports: List of report strings from processed files
+        stats: Aggregate statistics from all processed files
+        warning_files: Optional set of filenames that should show WARNING
+                       (for half-translation detection)
+
+    Returns:
+        Rich Panel containing the results table with footer summary
+    """
+    if warning_files is None:
+        warning_files = set()
+
+    # Create table with chi-to-eng styling and footer enabled
+    table = Table(expand=True, show_header=True, show_footer=True, header_style="bold cyan", box=box.SIMPLE_HEAD)
+
+    # Add all individual columns with chi-to-eng color scheme and footer values
+    table.add_column("File Name", style="cyan", no_wrap=True, ratio=2, footer="TOTAL", footer_style="bold cyan")
+    table.add_column("Dialogues", style="yellow", no_wrap=True, ratio=1, footer=str(stats.dialogue_lines), footer_style="bold yellow")
+    table.add_column("Fixed", style="magenta", no_wrap=True, ratio=1, footer=str(stats.fixed_lines), footer_style="bold magenta")
+    table.add_column("Style Fixes", style="magenta", no_wrap=True, ratio=1, footer=str(stats.style_fixes), footer_style="bold magenta")
+    table.add_column("Empty Text Removed", style="magenta", no_wrap=True, ratio=1, footer=str(stats.empty_text_removed), footer_style="bold magenta")
+    table.add_column("Fake Text Removed", style="magenta", no_wrap=True, ratio=1, footer=str(stats.fake_text_removed), footer_style="bold magenta")
+    table.add_column("Deduped", style="magenta", no_wrap=True, ratio=1, footer=str(stats.duplicates_removed), footer_style="bold magenta")
+    table.add_column("Consecutive Merged", style="magenta", no_wrap=True, ratio=1, footer=str(stats.consecutive_merges), footer_style="bold magenta")
+    table.add_column("Alternating Merged", style="magenta", no_wrap=True, ratio=1, footer=str(stats.alternating_merges), footer_style="bold magenta")
+    table.add_column("Overlap Fixes", style="magenta", no_wrap=True, ratio=1, footer=str(stats.overlap_fixes), footer_style="bold magenta")
+
+    # Short Removed column (lines < 50ms removed)
+    table.add_column("Short Removed", style="magenta", no_wrap=True, ratio=1, footer=str(stats.short_duration_removed), footer_style="bold magenta")
+
+    # Warning column for half-translation detection
+    warning_count = len(warning_files)
+    table.add_column("Warning", style="bold red", no_wrap=True, ratio=1, footer=str(warning_count) if warning_count > 0 else "", footer_style="bold red")
+
+    # Parse reports and extract data for table rows
+    for report in reports:
+        # Extract filename from report
+        filename_match = re.search(r"'([^']+)'.*:", report)
+        if filename_match:
+            filename = filename_match.group(1)
+        else:
+            filename = "Unknown"
+
+        # Extract all individual statistics
+        def extract_stat(pattern: str) -> str:
+            match = re.search(pattern, report)
+            return match.group(1) if match else "0"
+
+        dialogue_count = extract_stat(r"dialogue=(\d+)")
+        fixed_count = extract_stat(r"fixed=(\d+)")
+        style_fixes = extract_stat(r"style_fixes=(\d+)")
+        empty_text_removed = extract_stat(r"empty_text_removed=(\d+)")
+        fake_text_removed = extract_stat(r"fake_text_removed=(\d+)")
+        deduped = extract_stat(r"deduped=(\d+)")
+        consecutive_merged = extract_stat(r"consecutive_merged=(\d+)")
+        alternating_merged = extract_stat(r"alternating_merged=(\d+)")
+        overlap_fixes = extract_stat(r"overlap_fixes=(\d+)")
+        short_removed = extract_stat(r"short_removed=(\d+)")
+
+        # Check if this file should show warning
+        warning_text = "WARNING" if filename in warning_files else ""
+
+        # Add row to table with all individual statistics
+        table.add_row(filename, dialogue_count, fixed_count, style_fixes, empty_text_removed, fake_text_removed, deduped, consecutive_merged, alternating_merged, overlap_fixes, short_removed, warning_text)
+
+    # Wrap table in Panel with blue border and title
+    panel = Panel(table, title="ASS QA Results", border_style="blue", padding=(0, 1))
+
+    return panel
 
 
 @dataclass
 class ASSDocument:
     lines: List[str]
     styles: Set[str] = field(default_factory=set)
-    events_format: List[str] = field(
-        default_factory=lambda: copy.deepcopy(CANON_EVENTS_FIELDS))
+    events_format: List[str] = field(default_factory=lambda: copy.deepcopy(CANON_EVENTS_FIELDS))
     events_format_line_index: Optional[int] = None
     events_section_start: Optional[int] = None
     events_section_end: Optional[int] = None
@@ -149,8 +237,7 @@ def parse_events_format(doc: ASSDocument) -> None:
         line = doc.lines[i].rstrip("\n")
         if line.strip().startswith(FORMAT_PREFIX):
             fields = [f.strip() for f in line.split(":", 1)[1].split(",")]
-            normalized = [next(
-                (c for c in CANON_EVENTS_FIELDS if c.lower() == f.lower()), f) for f in fields]
+            normalized = [next((c for c in CANON_EVENTS_FIELDS if c.lower() == f.lower()), f) for f in fields]
             doc.events_format = normalized
             doc.events_format_line_index = i
             break
@@ -190,8 +277,7 @@ def split_dialogue_payload(payload: str, expected_fields: int) -> List[str]:
     preserving any commas/spaces inside Text.
     """
     parts = payload.split(",", expected_fields - 1)
-    parts = [p if i == len(parts) - 1 else p.strip()
-             for i, p in enumerate(parts)]
+    parts = [p if i == len(parts) - 1 else p.strip() for i, p in enumerate(parts)]
     if len(parts) < expected_fields:
         if not parts:
             return [""] * (expected_fields - 1) + [""]
@@ -206,6 +292,21 @@ def is_valid_time(s: str) -> bool:
     return bool(TIME_RE.match(s))
 
 
+def extract_minute(timestamp: str) -> Optional[int]:
+    """Extract minute (MM) from H:MM:SS.cc timestamp.
+
+    Args:
+        timestamp: ASS timestamp in H:MM:SS.cc format
+
+    Returns:
+        The minute value (0-59), or None if timestamp is invalid
+    """
+    if not is_valid_time(timestamp):
+        return None
+    parts = timestamp.split(":")
+    return int(parts[1])
+
+
 def time_to_cs(s: str) -> Optional[int]:
     if not is_valid_time(s):
         return None
@@ -214,111 +315,47 @@ def time_to_cs(s: str) -> Optional[int]:
     return (int(h) * 3600 + int(m) * 60 + int(sec)) * 100 + int(cs)
 
 
-def collapse_leading_zero_hour_groups(s: str) -> str:
+# Lazy-load enchant dictionary to avoid import-time errors
+_enchant_dict = None
+
+
+def _get_enchant_dict():
+    """Get the enchant English dictionary, lazy-loaded.
+
+    Suppresses libenchant warnings about missing spell-check backends
+    by redirecting stderr during import and dictionary creation.
     """
-    Fix AI hallucination where an extra '0:' is inserted before a valid H:MM:SS.cc,
-    e.g. '0:0:06:15.60' -> '0:06:15.60'. If multiple leading zero hour groups exist,
-    collapse them to a single '0:'; otherwise return unchanged.
-    """
-    tok = (s or "").strip()
-    parts = tok.split(":")
-    if len(parts) <= 3:
-        return tok
-    leading = parts[:-2]  # everything before MM and SS.cs
-    if all(p == "0" for p in leading):
-        return f"0:{parts[-2]}:{parts[-1]}"
-    return tok
+    global _enchant_dict
+    if _enchant_dict is None:
+        try:
+            # Suppress libenchant warnings about missing backends (hspell, voikko, nuspell)
+            # by redirecting stderr during import and Dict creation
+            stderr_fd = os.dup(2)
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, 2)
+            try:
+                import enchant
+                _enchant_dict = enchant.Dict("en_US")
+            finally:
+                os.dup2(stderr_fd, 2)
+                os.close(devnull)
+                os.close(stderr_fd)
+        except Exception:
+            _enchant_dict = False  # Mark as unavailable
+    return _enchant_dict if _enchant_dict else None
 
 
-def ensure_hour_present(s: str) -> str:
-    """
-    If token looks like 'MM:SS.cc', prepend '0:' to make '0:MM:SS.cc'.
-    Otherwise return unchanged.
-    """
-    tok = (s or "").strip()
-    if MM_SS_CS_RE.match(tok):
-        return f"0:{tok}"
-    return tok
+def is_valid_english_word(word: str) -> bool:
+    """Check if a short English word is valid using enchant dictionary."""
+    d = _get_enchant_dict()
+    if d is None:
+        return True  # If enchant unavailable, don't filter
+    return d.check(word) or d.check(word.lower())
 
 
-def coalesce_zero_comma_to_hour(parts: List[str], i: int) -> bool:
-    """
-    If parts[i] is '0' or '00' or '0:' and parts[i+1] looks like MM:SS.cc,
-    merge them into a single hour-qualified token '0:MM:SS.cc'.
-    Returns True if a merge occurred (and modifies parts in place).
-    """
-    if i < 0 or i + 1 >= len(parts):
-        return False
-    left = parts[i].strip()
-    right = parts[i + 1].strip()
-    if left in {"0", "00", "0:"} and MM_SS_CS_RE.match(right):
-        parts[i] = f"0:{right}"
-        del parts[i + 1]
-        return True
-    return False
-
-
-def normalize_time_candidate(tok: str) -> str:
-    """
-    Normalize a single token candidate:
-      - collapse extra '0:' groups inside the token
-      - ensure hour is present if it looks like MM:SS.cc
-    """
-    t = collapse_leading_zero_hour_groups(tok.strip())
-    t = ensure_hour_present(t)
-    return t
-
-
-def realign_extra_zero_before_start(parts: List[str]) -> List[str]:
-    """
-    If parts look like: Layer=0, extra '0'/'0:' before Start, realign so Start is first proper time token.
-    Also:
-      - Coalesce '0,MM:SS.cc' or '0:,MM:SS.cc' -> '0:MM:SS.cc'
-      - Collapse extra '0:' groups and ensure hour on time tokens
-      - Remove repeated leading '0'/'0:' tokens that are not part of a time
-    """
-    if len(parts) < 3:
-        return parts
-
-    # Step A: attempt coalescing for the first few tokens (between Layer and Start/End)
-    j = 1
-    while j + 1 < len(parts) and j < 6:
-        if coalesce_zero_comma_to_hour(parts, j):
-            # list shrank; keep j to re-check the merged token
-            continue
-        j += 1
-
-    # Step B: normalize potential time candidates
-    for i in range(1, min(6, len(parts))):
-        normalized = normalize_time_candidate(parts[i])
-        if normalized != parts[i]:
-            parts[i] = normalized
-
-    # Step C: find Start index as first valid time token
-    start_idx = None
-    for i in range(1, min(6, len(parts))):
-        if is_valid_time(parts[i].strip()):
-            start_idx = i
-            break
-
-    if start_idx is None:
-        return parts
-
-    # Normalize immediate End candidate too
-    if start_idx + 1 < len(parts):
-        parts[start_idx +
-              1] = normalize_time_candidate(parts[start_idx + 1].strip())
-
-    # Step D: if there were extra tokens before Start (like multiple '0'/'0:'), collapse them away
-    if start_idx > 1:
-        new_parts = [parts[0]]  # Layer
-        new_parts.append(parts[start_idx])  # Start
-        if start_idx + 1 < len(parts):
-            new_parts.append(parts[start_idx + 1])  # End
-        new_parts += parts[start_idx + 2:]
-        return new_parts
-
-    return parts
+def is_valid_cjk_char(char: str) -> bool:
+    """Check if a single CJK character is a valid word using jieba3 dictionary."""
+    return BASE_MODEL_FREQ.get(char, 0) > 0
 
 
 def is_fake_text(text: str) -> bool:
@@ -331,7 +368,111 @@ def is_fake_text(text: str) -> bool:
     lower = t.lower().replace(" ", "")
     if "layer,start,end,style,name,marginl,marginr,marginv,effect,text" in lower:
         return True
+
+    # Multi-dash patterns (OCR artifacts): --, ---, - -, etc.
+    if re.fullmatch(r"-[\s-]*-+", t):
+        return True
+
+    # Backticks (OCR artifacts)
+    if re.fullmatch(r"`+", t):
+        return True
+
+    # Contains replacement character (garbled OCR)
+    if "□" in t:
+        return True
+
+    # OCR artifacts: single digits/numbers, single punctuation, and underscores
+    # These are common OCR noise patterns that should be treated as fake text
+    if re.fullmatch(r"\d+", t):  # Pure numbers (e.g., "1", "42", "123")
+        return True
+    if re.fullmatch(r"[^\w\s]", t):  # Single punctuation/non-alphanumeric (e.g., ".")
+        return True
+    if re.fullmatch(r"_+", t):  # One or more underscores (e.g., "_", "__", "___")
+        return True
+
+    # Single ASCII letter: only "I" is valid in Chinese donghua dialogue
+    # All other single letters are OCR artifacts
+    if re.fullmatch(r"[A-Za-z]", t):
+        if t != "I":
+            return True
+
+    # Two ASCII letters: check against English dictionary
+    if re.fullmatch(r"[A-Za-z]{2}", t):
+        if not is_valid_english_word(t):
+            return True
+
+    # Single letter with trailing punctuation/garbage (e.g., "r.", "A -")
+    # Always artifact except "I"
+    single_letter_match = re.fullmatch(r"([A-Za-z])[\s.\-]+", t)
+    if single_letter_match:
+        if single_letter_match.group(1) != "I":
+            return True
+
+    # Two letters with trailing punctuation: check dictionary
+    two_letter_match = re.fullmatch(r"([A-Za-z]{2})[\s.\-]+", t)
+    if two_letter_match:
+        if not is_valid_english_word(two_letter_match.group(1)):
+            return True
+
+    # Single CJK character: check against jieba3 dictionary
+    if len(t) == 1 and '\u4e00' <= t <= '\u9fff':
+        if not is_valid_cjk_char(t):
+            return True
+
     return False
+
+
+def texts_match_for_merge(text1: str, text2: str, duration_cs: Optional[int] = None) -> bool:
+    """
+    Check if two texts should be considered matching for merge purposes.
+
+    - Exact match: Always allowed
+    - Fuzzy match (edit distance = 1): Only allowed if duration < MIN_DURATION_CS
+      This prevents merging legitimate dialogue like "first layer" vs "second layer"
+      while allowing OCR artifact cleanup (very short lines with OCR errors)
+
+    Args:
+        text1: First text to compare
+        text2: Second text to compare
+        duration_cs: Duration of the first line in centiseconds (for fuzzy match safeguard)
+
+    Returns:
+        True if texts match (exactly or within fuzzy tolerance for short lines)
+    """
+    if text1 == text2:
+        return True
+    # Only allow fuzzy matching for short-duration lines (OCR artifacts)
+    if duration_cs is not None and duration_cs < MIN_DURATION_CS:
+        return Levenshtein.distance(text1, text2) == 1
+    return False
+
+
+def texts_are_ocr_variants(text1: str, text2: str, min_similarity: float = 0.7) -> bool:
+    """
+    Check if two texts are OCR variants of each other (e.g., traditional vs simplified Chinese).
+
+    Uses normalized Levenshtein similarity to determine if texts are similar enough
+    to be considered variants of the same dialogue.
+
+    Args:
+        text1: First text
+        text2: Second text
+        min_similarity: Minimum normalized similarity threshold (0.0 to 1.0)
+
+    Returns:
+        True if texts are similar enough to be OCR variants
+    """
+    if text1 == text2:
+        return True
+    if not text1 or not text2:
+        return False
+
+    # Calculate normalized similarity (1.0 = identical, 0.0 = completely different)
+    max_len = max(len(text1), len(text2))
+    distance = Levenshtein.distance(text1, text2)
+    similarity = 1.0 - (distance / max_len)
+
+    return similarity >= min_similarity
 
 
 def sanitize_int(val: str) -> Tuple[str, bool]:
@@ -346,17 +487,6 @@ def sanitize_int(val: str) -> Tuple[str, bool]:
     return v, changed
 
 
-def looks_like_sentence(s: str) -> bool:
-    if not s:
-        return False
-    # heuristic: contains letters incl. extended Unicode and likely lowercase, or space/punctuation end
-    if re.search(r"[A-Za-z\u00C0-\uFFFF]", s) and re.search(r"[a-z\u00DF-\u024F]", s):
-        return True
-    if " " in s or s.endswith((".", "!", "?", "…")):
-        return True
-    return False
-
-
 def rebuild_dialogue_line(fields_order: List[str], values: Dict[str, str]) -> str:
     parts = [values.get(k, "") for k in fields_order]
     return f"{DIALOGUE_PREFIX} " + ",".join(parts)
@@ -368,32 +498,15 @@ def process_dialogue_line(
     styles: Set[str],
     stats: QAStats,
     keep_empty_text: bool,
-    filehint: str,
-    lineno: int,
 ) -> Optional[str]:
     stats.dialogue_lines += 1
     payload = raw_line.split(":", 1)[1].lstrip()
     expected = len(fields_order)
 
-    # Split and realign hallucinations before Start; keep Text intact
-    parts = payload.split(",", expected - 1)
-    parts = [p if i == len(parts) - 1 else p.strip()
-             for i, p in enumerate(parts)]
-    parts = realign_extra_zero_before_start(parts)
-
-    # Normalize to expected size with safe splitter (keeps Text intact)
-    payload = ",".join(parts)
+    # Split payload into fields (keeps Text intact via maxsplit)
     parts = split_dialogue_payload(payload, expected)
 
-    # stats on payload shape
-    commas = payload.count(",")
-    if commas > expected - 1:
-        stats.format_collapse_fixes += 1
-    elif commas < expected - 1:
-        stats.format_padding_fixes += 1
-
-    values = {fields_order[i]: parts[i] if i < len(
-        parts) else "" for i in range(expected)}
+    values = {fields_order[i]: parts[i] if i < len(parts) else "" for i in range(expected)}
     changed_any = False
 
     # Layer
@@ -402,83 +515,40 @@ def process_dialogue_line(
         changed_any = True
     values["Layer"] = layer
 
-    # Start/End — normalize candidates: collapse extra "0:", ensure hour if missing
-    start_raw = normalize_time_candidate(
-        (values.get("Start", "") or "").strip())
-    end_raw = normalize_time_candidate((values.get("End", "") or "").strip())
-    values["Start"] = start_raw
-    values["End"] = end_raw
-
-    # Validate timing
-    start_ok = is_valid_time(start_raw)
-    end_ok = is_valid_time(end_raw)
-    warn = False
-    if not start_ok or not end_ok:
-        warn = True
-    else:
-        cs_s = time_to_cs(start_raw)
-        cs_e = time_to_cs(end_raw)
-        if cs_s is None or cs_e is None or cs_e < cs_s:
-            warn = True
-    if warn:
-        stats.time_warnings += 1
-        sys.stderr.write(
-            f"{RED}[TIME WARNING]{RESET} {filehint}:{lineno+1}  Start='{start_raw}'  End='{end_raw}'  Line: {raw_line.strip()}\n"
-        )
+    # Start/End - use as-is
+    values["Start"] = (values.get("Start", "") or "").strip()
+    values["End"] = (values.get("End", "") or "").strip()
 
     # Style
-    style = values.get("Style", "").strip() or "Default"
-    if styles and style not in styles:
+    original_style = values.get("Style", "")
+    style = original_style.strip() or "Default"
+
+    # Validate style exists in styles section (case-insensitive)
+    # If no styles section exists, or style is not found, use Default
+    style_normalized = style.lower()
+    valid_styles_lower = {s.lower() for s in styles} if styles else set()
+
+    if (
+        not styles  # No styles section exists
+        or not original_style.strip()  # Empty style name (original, not after default assignment)
+        or style_normalized not in valid_styles_lower
+    ):  # Style not found (case-insensitive)
         style = "Default"
         stats.style_fixes += 1
         changed_any = True
+    else:
+        # Normalize the style name to match the case from the styles section
+        for defined_style in styles:
+            if defined_style.lower() == style_normalized:
+                style = defined_style
+                break
+
     values["Style"] = style
 
-    # Name
-    name = values.get("Name", "")
-    if name.strip() in {"0", "00", "000"}:
-        name = ""
-        stats.name_fixes += 1
-        changed_any = True
-    values["Name"] = name
-
-    # Margins
-    for key in ("MarginL", "MarginR", "MarginV"):
-        newv, ch = sanitize_int(values.get(key, "0"))
-        if ch or newv != values.get(key, ""):
-            stats.margin_fixes += 1
-            changed_any = True
-        values[key] = newv
-
-    # Effect
-    effect = values.get("Effect", "")
-    if effect.strip().isdigit():
-        effect = ""
-        stats.effect_fixes += 1
-        changed_any = True
-    values["Effect"] = effect
-
-    # Text cleanup & rescue
+    # Text cleanup
     text = values.get("Text", "")
     text = re.sub(r"[\ufeff\u200b\u200e\u200f]", "", text)
     text = text.strip()
-
-    if text == "":
-        for k in ("Effect", "MarginV", "MarginR", "MarginL", "Name"):
-            v = (values.get(k, "") or "").strip()
-            if looks_like_sentence(v):
-                text = v
-                if k.startswith("Margin"):
-                    values[k] = "0"
-                    stats.margin_fixes += 1
-                elif k == "Name":
-                    values[k] = ""
-                    stats.name_fixes += 1
-                else:
-                    values[k] = ""
-                    stats.effect_fixes += 1
-                changed_any = True
-                break
 
     if text in ARTIFACT_EMPTY_TEXT:
         text = ""
@@ -504,10 +574,8 @@ def dedupe_dialogues(dialogue_lines: List[str], fields_order: List[str]) -> Tupl
     for line in dialogue_lines:
         payload = line.split(":", 1)[1].lstrip()
         parts = split_dialogue_payload(payload, len(fields_order))
-        m = {fields_order[i]: parts[i] if i < len(
-            fields_order) else "" for i in range(len(fields_order))}
-        key = (m.get("Start", ""), m.get("End", ""), m.get(
-            "Style", ""), (m.get("Text", "") or "").strip())
+        m = {fields_order[i]: parts[i] if i < len(fields_order) else "" for i in range(len(fields_order))}
+        key = (m.get("Start", ""), m.get("End", ""), m.get("Style", ""), (m.get("Text", "") or "").strip())
         if key in seen:
             removed += 1
             continue
@@ -516,14 +584,604 @@ def dedupe_dialogues(dialogue_lines: List[str], fields_order: List[str]) -> Tupl
     return out, removed
 
 
+def merge_consecutive_dialogues(dialogue_lines: List[str], fields_order: List[str]) -> Tuple[List[str], int]:
+    """
+    Merge consecutive dialogue lines with identical text and timestamps within 500ms gap.
+
+    Consecutive means: the gap between the end time of one line and the start time of the next line
+    is 500ms or less. When such lines are found with the same text, they are merged into a single
+    line spanning from the earliest start to the latest end time.
+
+    Returns:
+        Tuple of (merged_dialogue_lines, number_of_merges_performed)
+    """
+
+    # Maximum allowed gap between dialogues for merging (500ms = 50 centiseconds)
+    MAX_GAP_CS = 50
+    if not dialogue_lines:
+        return dialogue_lines, 0
+
+    # Parse all dialogue lines into structured format
+    parsed_dialogues = []
+    for line in dialogue_lines:
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        m = {fields_order[i]: parts[i] if i < len(fields_order) else "" for i in range(len(fields_order))}
+        parsed_dialogues.append(
+            {
+                "original_line": line,
+                "start": m.get("Start", "").strip(),
+                "end": m.get("End", "").strip(),
+                "style": m.get("Style", "").strip(),
+                "name": m.get("Name", "").strip(),
+                "marginl": m.get("MarginL", "").strip(),
+                "marginr": m.get("MarginR", "").strip(),
+                "marginv": m.get("MarginV", "").strip(),
+                "effect": m.get("Effect", "").strip(),
+                "text": (m.get("Text", "") or "").strip(),
+            }
+        )
+
+    if len(parsed_dialogues) < 2:
+        return dialogue_lines, 0
+
+    merged_dialogues = []
+    merges_count = 0
+    i = 0
+
+    while i < len(parsed_dialogues):
+        current = parsed_dialogues[i]
+        merged_start = current["start"]
+        merged_end = current["end"]
+        merged_text = current["text"]  # Track which text to keep (may change for short echo)
+
+        # Look ahead for consecutive dialogues with same text
+        j = i + 1
+        while j < len(parsed_dialogues):
+            next_dialogue = parsed_dialogues[j]
+
+            # Check if gap between dialogues is within 500ms (50 centiseconds)
+            # and text and all other fields are identical (or fuzzy match for short lines)
+            gap_cs = None
+            if merged_end and next_dialogue["start"]:
+                merged_end_cs = time_to_cs(merged_end)
+                next_start_cs = time_to_cs(next_dialogue["start"])
+                if merged_end_cs is not None and next_start_cs is not None:
+                    gap_cs = next_start_cs - merged_end_cs
+
+            # Calculate durations for both current and next line
+            current_duration_cs = None
+            next_duration_cs = None
+            current_start_cs = time_to_cs(current["start"])
+            current_end_cs = time_to_cs(current["end"])
+            next_start_cs = time_to_cs(next_dialogue["start"])
+            next_end_cs = time_to_cs(next_dialogue["end"])
+
+            if current_start_cs is not None and current_end_cs is not None:
+                current_duration_cs = current_end_cs - current_start_cs
+            if next_start_cs is not None and next_end_cs is not None:
+                next_duration_cs = next_end_cs - next_start_cs
+
+            # Short echo detection: exactly consecutive (no gap), one line < 50ms, OCR variants
+            if (
+                gap_cs is not None
+                and gap_cs == 0  # Exactly consecutive, no gap
+                and current_duration_cs is not None
+                and next_duration_cs is not None
+                and texts_are_ocr_variants(merged_text, next_dialogue["text"])
+                and current["style"] == next_dialogue["style"]
+                and current["name"] == next_dialogue["name"]
+                and current["marginl"] == next_dialogue["marginl"]
+                and current["marginr"] == next_dialogue["marginr"]
+                and current["marginv"] == next_dialogue["marginv"]
+                and current["effect"] == next_dialogue["effect"]
+            ):
+                # Case A: Next line is short echo (< 50ms) - keep current text
+                if next_duration_cs < 5:
+                    merged_end = next_dialogue["end"]
+                    # merged_text stays as current (longer line)
+                    j += 1
+                    merges_count += 1
+                    continue
+
+                # Case B: Current/merged line is short echo (< 50ms) - use next's text
+                elif current_duration_cs < 5:
+                    merged_text = next_dialogue["text"]  # Switch to longer line's text
+                    merged_end = next_dialogue["end"]
+                    j += 1
+                    merges_count += 1
+                    continue
+
+            # Existing logic: merge consecutive dialogues with same/similar text within 500ms gap
+            if (
+                gap_cs is not None
+                and gap_cs <= MAX_GAP_CS
+                and texts_match_for_merge(merged_text, next_dialogue["text"], current_duration_cs)
+                and current["style"] == next_dialogue["style"]
+                and current["name"] == next_dialogue["name"]
+                and current["marginl"] == next_dialogue["marginl"]
+                and current["marginr"] == next_dialogue["marginr"]
+                and current["marginv"] == next_dialogue["marginv"]
+                and current["effect"] == next_dialogue["effect"]
+            ):
+                # Merge them
+                merged_end = next_dialogue["end"]
+                j += 1
+                merges_count += 1
+            else:
+                break
+
+        if j > i + 1:  # We found at least one merge
+            # Create merged dialogue
+            merged_values = {
+                "Layer": "0",  # Default layer
+                "Start": merged_start,
+                "End": merged_end,
+                "Style": current["style"],
+                "Name": current["name"],
+                "MarginL": current["marginl"],
+                "MarginR": current["marginr"],
+                "MarginV": current["marginv"],
+                "Effect": current["effect"],
+                "Text": merged_text,  # Use tracked text (may be from next line in short echo case)
+            }
+            merged_line = rebuild_dialogue_line(fields_order, merged_values)
+            merged_dialogues.append(merged_line)
+            i = j  # Skip all the merged dialogues
+        else:
+            # No merge found, keep original
+            merged_dialogues.append(current["original_line"])
+            i += 1
+
+    return merged_dialogues, merges_count
+
+
+def merge_alternating_ocr_variants(dialogue_lines: List[str], fields_order: List[str]) -> Tuple[List[str], int]:
+    """
+    Merge alternating OCR variant patterns (e.g., traditional/simplified Chinese alternation).
+
+    Detects patterns like:
+        line1: 沒本事就沒本事 (variant A)
+        line2: 没本事就没本事 (variant B)
+        line3: 沒本事就沒本事 (variant A)
+        line4: 没本事就没本事 (variant B)
+        ...
+
+    Where lines are consecutive (no gaps) and A/B are similar OCR variants.
+    Merges entire sequence into single line using the first variant's text.
+
+    Returns:
+        Tuple of (merged_dialogue_lines, number_of_merges_performed)
+    """
+    if not dialogue_lines or len(dialogue_lines) < 3:
+        return dialogue_lines, 0
+
+    # Parse all dialogue lines into structured format
+    parsed_dialogues = []
+    for line in dialogue_lines:
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        m = {fields_order[i]: parts[i] if i < len(fields_order) else "" for i in range(len(fields_order))}
+        parsed_dialogues.append(
+            {
+                "original_line": line,
+                "start": m.get("Start", "").strip(),
+                "end": m.get("End", "").strip(),
+                "style": m.get("Style", "").strip(),
+                "name": m.get("Name", "").strip(),
+                "marginl": m.get("MarginL", "").strip(),
+                "marginr": m.get("MarginR", "").strip(),
+                "marginv": m.get("MarginV", "").strip(),
+                "effect": m.get("Effect", "").strip(),
+                "text": (m.get("Text", "") or "").strip(),
+            }
+        )
+
+    merged_dialogues = []
+    merges_count = 0
+    i = 0
+
+    while i < len(parsed_dialogues):
+        current = parsed_dialogues[i]
+
+        # Try to detect alternating pattern starting at i
+        # Need at least 3 lines: A, B, A (to confirm alternation)
+        if i + 2 < len(parsed_dialogues):
+            first = parsed_dialogues[i]
+            second = parsed_dialogues[i + 1]
+            third = parsed_dialogues[i + 2]
+
+            # Check if lines are consecutive (no gaps)
+            first_end_cs = time_to_cs(first["end"])
+            second_start_cs = time_to_cs(second["start"])
+            second_end_cs = time_to_cs(second["end"])
+            third_start_cs = time_to_cs(third["start"])
+
+            is_consecutive = (
+                first_end_cs is not None and second_start_cs is not None and
+                second_end_cs is not None and third_start_cs is not None and
+                first_end_cs == second_start_cs and
+                second_end_cs == third_start_cs
+            )
+
+            # Check if texts follow A, B, A pattern where A != B but A and B are similar
+            text_a = first["text"]
+            text_b = second["text"]
+            text_third = third["text"]
+
+            is_alternating = (
+                text_a != text_b and  # A and B are different
+                text_a == text_third and  # Third matches first (A, B, A pattern)
+                texts_are_ocr_variants(text_a, text_b)  # A and B are similar variants
+            )
+
+            # Check other fields match
+            fields_match = (
+                first["style"] == second["style"] == third["style"] and
+                first["name"] == second["name"] == third["name"] and
+                first["marginl"] == second["marginl"] == third["marginl"] and
+                first["marginr"] == second["marginr"] == third["marginr"] and
+                first["marginv"] == second["marginv"] == third["marginv"] and
+                first["effect"] == second["effect"] == third["effect"]
+            )
+
+            if is_consecutive and is_alternating and fields_match:
+                # Found alternating pattern, extend as far as possible
+                merged_start = first["start"]
+                merged_end = third["end"]
+                j = i + 3
+
+                while j < len(parsed_dialogues):
+                    next_d = parsed_dialogues[j]
+                    prev_d = parsed_dialogues[j - 1]
+
+                    # Check consecutive
+                    prev_end_cs = time_to_cs(prev_d["end"])
+                    next_start_cs = time_to_cs(next_d["start"])
+                    if prev_end_cs is None or next_start_cs is None or prev_end_cs != next_start_cs:
+                        break
+
+                    # Check alternating pattern continues (expect A if j is even offset, B if odd)
+                    expected_text = text_a if (j - i) % 2 == 0 else text_b
+                    if next_d["text"] != expected_text:
+                        # Allow variant matching for flexibility
+                        if not texts_are_ocr_variants(next_d["text"], expected_text, min_similarity=0.9):
+                            break
+
+                    # Check fields match
+                    if not (
+                        next_d["style"] == first["style"] and
+                        next_d["name"] == first["name"] and
+                        next_d["marginl"] == first["marginl"] and
+                        next_d["marginr"] == first["marginr"] and
+                        next_d["marginv"] == first["marginv"] and
+                        next_d["effect"] == first["effect"]
+                    ):
+                        break
+
+                    merged_end = next_d["end"]
+                    j += 1
+
+                # Create merged dialogue using first variant's text
+                merged_values = {
+                    "Layer": "0",
+                    "Start": merged_start,
+                    "End": merged_end,
+                    "Style": first["style"],
+                    "Name": first["name"],
+                    "MarginL": first["marginl"],
+                    "MarginR": first["marginr"],
+                    "MarginV": first["marginv"],
+                    "Effect": first["effect"],
+                    "Text": text_a,  # Use first variant
+                }
+                merged_line = rebuild_dialogue_line(fields_order, merged_values)
+                merged_dialogues.append(merged_line)
+                merges_count += (j - i - 1)  # Count how many lines were merged
+                i = j
+                continue
+
+        # No alternating pattern found, keep original
+        merged_dialogues.append(current["original_line"])
+        i += 1
+
+    return merged_dialogues, merges_count
+
+
+def fix_overlapping_timestamps(dialogue_lines: List[str], fields_order: List[str]) -> Tuple[List[str], int]:
+    """
+    Fix overlapping timestamps between consecutive dialogue lines.
+
+    When the end time of one dialogue overlaps with the start time of the next dialogue
+    and the difference is less than 0.02 seconds (2 centiseconds), swap the end time
+    of the first line with the start time of the second line.
+
+    Args:
+        dialogue_lines: List of dialogue lines to process
+        fields_order: Order of fields in the dialogue lines
+
+    Returns:
+        Tuple of (fixed_dialogue_lines, number_of_fixes_applied)
+    """
+    if not dialogue_lines or len(dialogue_lines) < 2:
+        return dialogue_lines, 0
+
+    # Parse all dialogue lines into structured format
+    parsed_dialogues = []
+    for line in dialogue_lines:
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        m = {fields_order[i]: parts[i] if i < len(fields_order) else "" for i in range(len(fields_order))}
+        parsed_dialogues.append(
+            {
+                "original_line": line,
+                "layer": m.get("Layer", "").strip(),
+                "start": m.get("Start", "").strip(),
+                "end": m.get("End", "").strip(),
+                "style": m.get("Style", "").strip(),
+                "name": m.get("Name", "").strip(),
+                "marginl": m.get("MarginL", "").strip(),
+                "marginr": m.get("MarginR", "").strip(),
+                "marginv": m.get("MarginV", "").strip(),
+                "effect": m.get("Effect", "").strip(),
+                "text": (m.get("Text", "") or "").strip(),
+            }
+        )
+
+    # Fix overlapping timestamps
+    fixes_count = 0
+    overlap_threshold = 2  # 0.02 seconds in centiseconds
+
+    for i in range(len(parsed_dialogues) - 1):
+        current = parsed_dialogues[i]
+        next_dialogue = parsed_dialogues[i + 1]
+
+        # Convert timestamps to centiseconds for comparison
+        current_cs_end = time_to_cs(current["end"])
+        next_cs_start = time_to_cs(next_dialogue["start"])
+
+        # Check if we have valid timestamps and overlap
+        if current_cs_end is not None and next_cs_start is not None:
+            if current_cs_end > next_cs_start:
+                # Calculate the overlap
+                overlap = current_cs_end - next_cs_start
+
+                # Fix only if overlap is less than threshold (0.02 seconds)
+                if overlap <= overlap_threshold:
+                    # Convert back to timestamp format
+                    new_end_time = cs_to_time(next_cs_start)
+                    new_start_time = cs_to_time(current_cs_end)
+
+                    if new_end_time and new_start_time:
+                        # Update the parsed dialogues with swapped timestamps
+                        current["end"] = new_end_time
+                        next_dialogue["start"] = new_start_time
+                        fixes_count += 1
+
+    # Rebuild dialogue lines with fixed timestamps
+    fixed_dialogues = []
+    for dialogue in parsed_dialogues:
+        values = {"Layer": dialogue["layer"], "Start": dialogue["start"], "End": dialogue["end"], "Style": dialogue["style"], "Name": dialogue["name"], "MarginL": dialogue["marginl"], "MarginR": dialogue["marginr"], "MarginV": dialogue["marginv"], "Effect": dialogue["effect"], "Text": dialogue["text"]}
+        fixed_line = rebuild_dialogue_line(fields_order, values)
+        fixed_dialogues.append(fixed_line)
+
+    return fixed_dialogues, fixes_count
+
+
+def cs_to_time(cs: int) -> str:
+    """
+    Convert centiseconds back to H:MM:SS.cc timestamp format.
+
+    Args:
+        cs: Centiseconds since 00:00:00.00
+
+    Returns:
+        Timestamp string in H:MM:SS.cc format
+    """
+    total_seconds = cs // 100
+    centiseconds = cs % 100
+
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    return f"{hours}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
+
+
+# Threshold for short duration removal (50ms = 5 centiseconds)
+SHORT_DURATION_THRESHOLD_CS = 5
+
+
+def remove_short_duration_lines(dialogue_lines: List[str], fields_order: List[str]) -> Tuple[List[str], int]:
+    """
+    Remove dialogue lines with duration less than 50ms (5 centiseconds).
+
+    Lines this short are too brief to be readable and are typically OCR artifacts
+    that weren't caught by earlier processing steps.
+
+    This should be called as the FINAL processing step, after all merges and fixes.
+
+    Args:
+        dialogue_lines: List of dialogue lines to filter
+        fields_order: Order of fields in the dialogue lines
+
+    Returns:
+        Tuple of (filtered_dialogue_lines, number_of_lines_removed)
+    """
+    if not dialogue_lines:
+        return dialogue_lines, 0
+
+    filtered_lines: List[str] = []
+    removed_count = 0
+
+    for line in dialogue_lines:
+        if not line.strip().startswith(DIALOGUE_PREFIX):
+            filtered_lines.append(line)
+            continue
+
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        values = {fields_order[i]: parts[i] if i < len(parts) else "" for i in range(len(fields_order))}
+
+        start_str = values.get("Start", "").strip()
+        end_str = values.get("End", "").strip()
+
+        start_cs = time_to_cs(start_str)
+        end_cs = time_to_cs(end_str)
+
+        if start_cs is not None and end_cs is not None:
+            duration_cs = end_cs - start_cs
+            if duration_cs < SHORT_DURATION_THRESHOLD_CS:
+                removed_count += 1
+                continue  # Skip this line (remove it)
+
+        filtered_lines.append(line)
+
+    return filtered_lines, removed_count
+
+
+def detect_short_duration_dialogues(path: str) -> List[Dict]:
+    """
+    Detect dialogue lines with very short duration (less than 80ms).
+
+    These short duration lines are typically OCR merge errors where a line
+    wasn't properly merged with the next one during subtitle extraction.
+
+    Args:
+        path: Path to the ASS file to analyze
+
+    Returns:
+        List of warning dictionaries containing:
+        - start: Start timestamp
+        - end: End timestamp
+        - duration_ms: Duration in milliseconds
+        - text: The dialogue text
+        - line_number: Line number in the file
+    """
+    doc = load_ass(path)
+    warnings: List[Dict] = []
+
+    fields_order = doc.events_format or copy.deepcopy(CANON_EVENTS_FIELDS)
+
+    for i, line in enumerate(doc.lines):
+        stripped = line.strip()
+        if not stripped.startswith(DIALOGUE_PREFIX):
+            continue
+
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        values = {fields_order[j]: parts[j] if j < len(parts) else "" for j in range(len(fields_order))}
+
+        start_str = values.get("Start", "").strip()
+        end_str = values.get("End", "").strip()
+        text = values.get("Text", "").strip()
+
+        start_cs = time_to_cs(start_str)
+        end_cs = time_to_cs(end_str)
+
+        if start_cs is not None and end_cs is not None:
+            duration_cs = end_cs - start_cs
+            if duration_cs < MIN_DURATION_CS:
+                warnings.append(
+                    {
+                        "start": start_str,
+                        "end": end_str,
+                        "duration_ms": duration_cs * 10,  # Convert centiseconds to milliseconds
+                        "text": text,
+                        "line_number": i + 1,
+                    }
+                )
+
+    return warnings
+
+
+def get_last_dialogue_minute(path: str) -> Optional[int]:
+    """Get the minute from the last dialogue line's start timestamp.
+
+    Args:
+        path: Path to the ASS file
+
+    Returns:
+        The minute value from the last dialogue's start timestamp,
+        or None if no dialogue lines found
+    """
+    doc = load_ass(path)
+    fields_order = doc.events_format or copy.deepcopy(CANON_EVENTS_FIELDS)
+
+    last_start_timestamp = None
+
+    for line in doc.lines:
+        stripped = line.strip()
+        if not stripped.startswith(DIALOGUE_PREFIX):
+            continue
+
+        payload = line.split(":", 1)[1].lstrip()
+        parts = split_dialogue_payload(payload, len(fields_order))
+        values = {fields_order[j]: parts[j] if j < len(parts) else "" for j in range(len(fields_order))}
+
+        start_str = values.get("Start", "").strip()
+        if start_str:
+            last_start_timestamp = start_str
+
+    if last_start_timestamp is None:
+        return None
+
+    return extract_minute(last_start_timestamp)
+
+
+def analyze_half_translation(file_minutes: Dict[str, int], min_files: int = 5) -> Set[str]:
+    """Analyze files for potential half-translation issues.
+
+    Detects files that may be only partially translated by comparing
+    the last dialogue line's start minute across all files.
+
+    Logic:
+    - Count how many files end at each minute
+    - Find the minute with the highest count (winner)
+    - If tie, use the highest minute value
+    - Calculate threshold = winner_minute - 2
+    - Flag files where last dialogue minute < threshold
+
+    Args:
+        file_minutes: Dict mapping filepath to last dialogue minute
+        min_files: Minimum number of files required for analysis (default: 5)
+
+    Returns:
+        Set of filepaths that should show WARNING
+    """
+    if len(file_minutes) < min_files:
+        return set()
+
+    # Count files per minute
+    minute_counts: Dict[int, int] = {}
+    for minute in file_minutes.values():
+        minute_counts[minute] = minute_counts.get(minute, 0) + 1
+
+    if not minute_counts:
+        return set()
+
+    # Find winner: highest count, ties go to highest minute
+    max_count = max(minute_counts.values())
+    winner_minute = max(m for m, c in minute_counts.items() if c == max_count)
+
+    # Calculate threshold
+    threshold = winner_minute - 2
+
+    # Flag files below threshold
+    warnings: Set[str] = set()
+    for filepath, minute in file_minutes.items():
+        if minute < threshold:
+            warnings.add(filepath)
+
+    return warnings
+
+
 def replace_styles_with_canonical(doc: ASSDocument, canonical_block: List[str]) -> None:
     sections = parse_sections(doc.lines)
     if "V4+ Styles" not in sections:
         # Insert before Events or at end
-        insert_at = sections["Events"][0] if "Events" in sections else len(
-            doc.lines)
-        doc.lines = doc.lines[:insert_at] + \
-            canonical_block + doc.lines[insert_at:]
+        insert_at = sections["Events"][0] if "Events" in sections else len(doc.lines)
+        doc.lines = doc.lines[:insert_at] + canonical_block + doc.lines[insert_at:]
         parse_styles(doc)
         return
     start, end = sections["V4+ Styles"]
@@ -539,6 +1197,7 @@ def process_ass(
     path: str,
     inplace: bool,
     keep_empty_text: bool,
+    dry_run: bool,
     canonical_styles_block: Optional[List[str]],
     have_canonical: bool,
 ) -> Tuple[str, QAStats, str, Optional[List[str]], bool]:
@@ -547,8 +1206,7 @@ def process_ass(
 
     # Establish or enforce canonical styles
     if not have_canonical and doc.styles_block_lines:
-        canonical_styles_block = [ln.rstrip("\n")
-                                  for ln in doc.styles_block_lines]
+        canonical_styles_block = [ln.rstrip("\n") for ln in doc.styles_block_lines]
         have_canonical = True
     elif have_canonical and canonical_styles_block:
         current = normalize_styles_block(doc.styles_block_lines or [])
@@ -571,16 +1229,12 @@ def process_ass(
             continue
         if in_events and stripped.startswith(FORMAT_PREFIX):
             fields = [f.strip() for f in line.split(":", 1)[1].split(",")]
-            normalized = [next(
-                (c for c in CANON_EVENTS_FIELDS if c.lower() == f.lower()), f) for f in fields]
+            normalized = [next((c for c in CANON_EVENTS_FIELDS if c.lower() == f.lower()), f) for f in fields]
             fields_order = normalized
             new_lines.append(f"{FORMAT_PREFIX} {', '.join(fields_order)}")
             continue
         if in_events and stripped.startswith(DIALOGUE_PREFIX):
-            fixed = process_dialogue_line(
-                line, fields_order, doc.styles, stats, keep_empty_text, os.path.basename(
-                    path), i
-            )
+            fixed = process_dialogue_line(line, fields_order, doc.styles, stats, keep_empty_text)
             if fixed is not None:
                 dialogue_buffer.append(fixed)
             continue
@@ -589,9 +1243,32 @@ def process_ass(
     # Always dedupe
     duplicates_removed = 0
     if dialogue_buffer:
-        dialogue_buffer, duplicates_removed = dedupe_dialogues(
-            dialogue_buffer, fields_order)
+        dialogue_buffer, duplicates_removed = dedupe_dialogues(dialogue_buffer, fields_order)
     stats.duplicates_removed = duplicates_removed
+
+    # Merge alternating OCR variant patterns (e.g., traditional/simplified Chinese)
+    alternating_merges = 0
+    if dialogue_buffer:
+        dialogue_buffer, alternating_merges = merge_alternating_ocr_variants(dialogue_buffer, fields_order)
+    stats.alternating_merges = alternating_merges
+
+    # Merge consecutive dialogues with same text and contiguous timestamps
+    consecutive_merges = 0
+    if dialogue_buffer:
+        dialogue_buffer, consecutive_merges = merge_consecutive_dialogues(dialogue_buffer, fields_order)
+    stats.consecutive_merges = consecutive_merges
+
+    # Fix overlapping timestamps
+    overlapping_fixes = 0
+    if dialogue_buffer:
+        dialogue_buffer, overlapping_fixes = fix_overlapping_timestamps(dialogue_buffer, fields_order)
+    stats.overlap_fixes = overlapping_fixes
+
+    # Remove short duration lines (< 50ms) as final step
+    short_duration_removed = 0
+    if dialogue_buffer:
+        dialogue_buffer, short_duration_removed = remove_short_duration_lines(dialogue_buffer, fields_order)
+    stats.short_duration_removed = short_duration_removed
 
     # Splice dialogues right after the Events Format line
     result_lines: List[str] = []
@@ -617,7 +1294,10 @@ def process_ass(
     doc.lines = result_lines
 
     # Write output (no .bak when inplace)
-    if inplace:
+    if dry_run:
+        # Skip file writing for dry run - return original path
+        out_path = path
+    elif inplace:
         save_ass(path, doc)
         out_path = path
     else:
@@ -625,27 +1305,25 @@ def process_ass(
         out_path = base + ".fixed" + ext
         save_ass(out_path, doc)
 
+    prefix = "[DRY RUN] " if dry_run else ""
     report = (
-        f"Processed '{os.path.basename(path)}': "
+        f"{prefix}Processed '{os.path.basename(path)}': "
         f"dialogue={stats.dialogue_lines}, fixed={stats.fixed_lines}, "
-        f"style_fixes={stats.style_fixes}, padding={stats.format_padding_fixes}, "
-        f"collapsed={stats.format_collapse_fixes}, name={stats.name_fixes}, "
-        f"margins={stats.margin_fixes}, effect={stats.effect_fixes}, "
+        f"style_fixes={stats.style_fixes}, "
         f"empty_text_removed={stats.empty_text_removed}, fake_text_removed={stats.fake_text_removed}, "
-        f"deduped={stats.duplicates_removed}, time_warnings={stats.time_warnings}"
+        f"deduped={stats.duplicates_removed}, consecutive_merged={stats.consecutive_merges}, "
+        f"alternating_merged={stats.alternating_merges}, "
+        f"overlap_fixes={stats.overlap_fixes}, short_removed={stats.short_duration_removed}"
     )
     return out_path, stats, report, canonical_styles_block, have_canonical
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(
-        description="Analyze and fix common QA issues in .ASS subtitle files.")
-    ap.add_argument("--inplace", action="store_true",
-                    help="Overwrite originals. Default: write *.fixed.ass.")
-    ap.add_argument("--keep-empty-text", action="store_true",
-                    help="Keep Dialogue lines with empty/artifact text.")
-    ap.add_argument("files", nargs="*",
-                    help="Specific .ASS files to process. If not provided, processes all .ass files in current directory.")
+    ap = argparse.ArgumentParser(description="Analyze and fix common QA issues in .ASS subtitle files.")
+    ap.add_argument("--inplace", action="store_true", help="Overwrite originals. Default: write *.fixed.ass.")
+    ap.add_argument("--keep-empty-text", action="store_true", help="Keep Dialogue lines with empty/artifact text.")
+    ap.add_argument("--dry-run", action="store_true", help="Analyze files and report issues without making any changes.")
+    ap.add_argument("files", nargs="*", help="Specific .ASS files to process. If not provided, processes all .ass files in current directory.")
     args = ap.parse_args()
 
     # Determine which files to process
@@ -654,7 +1332,7 @@ def main() -> None:
         paths = []
         for file_path in args.files:
             path = Path(file_path)
-            if path.exists() and path.is_file() and path.suffix.lower() == '.ass':
+            if path.exists() and path.is_file() and path.suffix.lower() == ".ass":
                 paths.append(str(path))
             else:
                 print(f"Warning: File not found or not an .ASS file: {file_path}", file=sys.stderr)
@@ -669,6 +1347,7 @@ def main() -> None:
     grand = QAStats()
     reports: List[str] = []
     outputs: List[str] = []
+    file_minutes: Dict[str, int] = {}  # For half-translation detection
 
     canonical_styles_block: Optional[List[str]] = None
     have_canonical = False
@@ -679,28 +1358,29 @@ def main() -> None:
                 p,
                 inplace=args.inplace,
                 keep_empty_text=args.keep_empty_text,
+                dry_run=args.dry_run,
                 canonical_styles_block=canonical_styles_block,
                 have_canonical=have_canonical,
             )
             outputs.append(out_path)
             reports.append(report)
             for field in vars(grand).keys():
-                setattr(grand, field, getattr(
-                    grand, field) + getattr(stats, field))
+                setattr(grand, field, getattr(grand, field) + getattr(stats, field))
+
+            # Collect last dialogue minute for half-translation detection
+            last_minute = get_last_dialogue_minute(p)
+            if last_minute is not None:
+                file_minutes[os.path.basename(p)] = last_minute
         except Exception as e:
             print(f"[ERROR] Failed '{p}': {e}", file=sys.stderr)
 
-    for r in reports:
-        print(r)
+    # Analyze for half-translation (files that may be only partially translated)
+    warning_files = analyze_half_translation(file_minutes)
 
-    print(
-        "\nSummary: "
-        f"files={len(outputs)}, dialogues={grand.dialogue_lines}, fixed={grand.fixed_lines}, "
-        f"style_fixes={grand.style_fixes}, padding={grand.format_padding_fixes}, collapsed={grand.format_collapse_fixes}, "
-        f"name={grand.name_fixes}, margins={grand.margin_fixes}, effect={grand.effect_fixes}, "
-        f"empty_text_removed={grand.empty_text_removed}, fake_text_removed={grand.fake_text_removed}, "
-        f"deduped={grand.duplicates_removed}, time_warnings={grand.time_warnings}"
-    )
+    # Generate and print Rich table with results (summary is now in table footer)
+    console = Console()
+    results_table = generate_results_table(reports, grand, warning_files)
+    console.print(results_table)
 
 
 if __name__ == "__main__":
