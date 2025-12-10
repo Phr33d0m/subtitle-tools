@@ -108,7 +108,6 @@ def process_file(path: str, delta_ms: int) -> tuple[int, int]:
         lines = f.readlines()
 
     in_events = False
-    start_idx = end_idx = -1
     # Track the most recent Format: mapping inside [Events]
     format_fields: List[str] = []
     idx_start = idx_end = None  # indices of Start and End columns
@@ -191,7 +190,6 @@ def process_file(path: str, delta_ms: int) -> tuple[int, int]:
         if in_events:
             # Refresh mapping when we see Format:
             if line.strip().lower().startswith(FORMAT_PREFIX.lower()):
-                before = line
                 update_format(line)
                 # If we normalized whitespace, keep the original line
                 # (We don't change Format: lines.)

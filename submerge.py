@@ -23,9 +23,9 @@ import logging
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
+from typing import List, Optional, Tuple
 
 
 # ------------------------------ Constants ------------------------------ #
@@ -89,18 +89,7 @@ LANGUAGE_CODE_MAPPING = {
     'th-TH': 'tha', 'vi-VN': 'vie', 'bg-BG': 'bul', 'tr-TR': 'tur',
 
     # Additional common variations
-    'chi': 'chi', 'chn': 'chi',  # Chinese variations
-    'spa': 'spa', 'es': 'spa',   # Spanish variations
-    'fre': 'fre', 'fr': 'fre',   # French variations
-    'ger': 'ger', 'de': 'ger',   # German variations
-    'cze': 'cze', 'cs': 'cze',   # Czech variations
-    'gre': 'gre', 'el': 'gre',   # Greek variations
-    'rum': 'rum', 'ro': 'rum',   # Romanian variations
-    'mac': 'mac', 'mk': 'mac',   # Macedonian variations
-    'baq': 'baq', 'eu': 'baq',   # Basque variations
-    'bur': 'bur', 'my': 'bur',   # Burmese variations
-    'tib': 'tib', 'bo': 'tib',   # Tibetan variations
-    'per': 'per', 'fa': 'per',   # Persian variations
+    'chn': 'chi',  # Chinese variations
 }
 
 # Language code to language name mapping for track names
@@ -627,7 +616,6 @@ def merge_video_with_subtitles(
     ]
 
     # Determine if we should preserve existing fonts in replace mode
-    preserve_existing_fonts = False
     has_external_fonts = bool(font_attachments)
     has_ass_subtitles = any(sub.extension.lower() == '.ass' for sub in subtitle_files)
 
@@ -639,7 +627,6 @@ def merge_video_with_subtitles(
         # Get existing subtitle track IDs to exclude them while preserving fonts
         existing_subtitle_track_ids = get_subtitle_track_ids(video_path)
         existing_fonts = get_existing_font_attachments(video_path)
-        preserve_existing_fonts = True
         logging.info("Replace mode: No external fonts found, preserving existing fonts")
         # Use video without --no-subtitles to preserve attachments (fonts)
         cmd.append(str(video_path))
