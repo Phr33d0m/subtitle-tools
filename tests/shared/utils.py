@@ -4,7 +4,6 @@ Common test utilities and helper functions.
 Provides reusable utility functions for testing across different tools.
 """
 
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional

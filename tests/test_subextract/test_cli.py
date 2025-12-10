@@ -5,9 +5,7 @@ Tests command-line interface behavior including path handling,
 parallel worker validation, and integration with extraction functionality.
 """
 
-import pytest
-import argparse
-from unittest.mock import patch, Mock, call
+from unittest.mock import patch
 import sys
 from pathlib import Path
 import subextract
@@ -21,12 +19,12 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.extract_subs_for_file') as mock_extract:
                 mock_extract.return_value = (True, "Success")
 
                 with patch('sys.argv', ['subextract', str(mkv_file)]):
-                    with patch('builtins.print') as mock_print:
+                    with patch('builtins.print'):
                         result = subextract.main()
 
                         # Verify arguments were parsed correctly
@@ -40,7 +38,7 @@ class TestArgumentParsing:
             mkv_file = temp_dir / f"test{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.process_mkvs') as mock_process:
                 mock_process.return_value = (2, 0)
 
@@ -84,7 +82,7 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.extract_subs_for_file') as mock_extract:
                 mock_extract.return_value = (False, "Extraction failed")
 
@@ -102,7 +100,7 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.process_mkvs') as mock_process:
                 mock_process.return_value = (3, 0)  # 3 successful, 0 failed
 
@@ -122,7 +120,7 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.process_mkvs') as mock_process:
                 mock_process.return_value = (2, 1)  # 2 successful, 1 failed
 
@@ -142,7 +140,7 @@ class TestMainFunction:
             import os
             os.chdir(temp_dir)
 
-            with patch('subextract.need') as mock_need:
+            with patch('subextract.need'):
                 with patch('sys.argv', ['subextract']):
                     with patch('builtins.print') as mock_print:
                         result = subextract.main()
@@ -165,7 +163,7 @@ class TestMainFunction:
             import os
             os.chdir(temp_dir)
 
-            with patch('subextract.need') as mock_need:
+            with patch('subextract.need'):
                 with patch('subextract.process_mkvs') as mock_process:
                     mock_process.return_value = (2, 0)
 
@@ -187,7 +185,7 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.process_mkvs') as mock_process:
                 mock_process.return_value = (4, 0)
 
@@ -206,7 +204,7 @@ class TestMainFunction:
         (temp_dir / "movie.mp4").write_bytes(b"video content")
         (temp_dir / "movie.srt").write_bytes(b"subtitle content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('sys.argv', ['subextract', str(temp_dir)]):
                 with patch('builtins.print') as mock_print:
                     result = subextract.main()
@@ -216,7 +214,7 @@ class TestMainFunction:
 
     def test_main_invalid_parallel_value(self, temp_dir):
         """Test main function with invalid parallel worker count."""
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('sys.argv', ['subextract', '--parallel', '0']):
                 with patch('builtins.print') as mock_print:
                     result = subextract.main()
@@ -229,7 +227,7 @@ class TestMainFunction:
 
     def test_main_negative_parallel_value(self, temp_dir):
         """Test main function with negative parallel worker count."""
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('sys.argv', ['subextract', '--parallel', '-5']):
                 with patch('builtins.print') as mock_print:
                     result = subextract.main()
@@ -245,7 +243,7 @@ class TestMainFunction:
         txt_file = temp_dir / "document.txt"
         txt_file.write_text("not an mkv file")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('sys.argv', ['subextract', str(txt_file)]):
                 with patch('builtins.print') as mock_print:
                     result = subextract.main()
@@ -260,7 +258,7 @@ class TestMainFunction:
         """Test main function with non-existent path."""
         non_existent = temp_dir / "nonexistent"
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('sys.argv', ['subextract', str(non_existent)]):
                 with patch('builtins.print') as mock_print:
                     result = subextract.main()
@@ -276,7 +274,7 @@ class TestMainFunction:
         mkv_file = temp_dir / "custom.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need') as mock_need:
+        with patch('subextract.need'):
             with patch('subextract.extract_subs_for_file') as mock_extract:
                 mock_extract.return_value = (True, "Success")
 

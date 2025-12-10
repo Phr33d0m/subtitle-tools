@@ -6,10 +6,7 @@ help messages, and integration with core functionality.
 """
 
 import pytest
-import argparse
-from unittest.mock import patch, Mock, call
-import sys
-from pathlib import Path
+from unittest.mock import patch
 import submerge
 
 
@@ -257,7 +254,7 @@ class TestMainFunction:
                 with patch('sys.exit') as mock_exit:
                     mock_exit.return_value = None  # Prevent actual exit
 
-                    result = submerge.main()
+                    submerge.main()
 
                     # Should call sys.exit(1) when dependencies are missing
                     mock_exit.assert_called_once_with(1)

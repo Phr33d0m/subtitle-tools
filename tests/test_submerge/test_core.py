@@ -5,7 +5,6 @@ Tests core functionality including file discovery, subtitle matching,
 and font collection without involving external dependencies.
 """
 
-import pytest
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, Mock

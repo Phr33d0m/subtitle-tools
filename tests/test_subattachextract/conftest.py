@@ -14,15 +14,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import subattachextract for testing
-import subattachextract
 
 # Import shared fixtures
-from tests.shared.fixtures import (
-    temp_dir,
-    sample_video_file,
-    mock_subprocess_success,
-    mock_subprocess_failure,
-)
 
 
 @pytest.fixture

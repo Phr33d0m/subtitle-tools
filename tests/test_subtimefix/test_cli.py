@@ -6,8 +6,7 @@ path handling, and integration with timestamp fixing functionality.
 """
 
 import pytest
-import argparse
-from unittest.mock import patch, Mock, call
+from unittest.mock import patch
 import sys
 from pathlib import Path
 import subtimefix

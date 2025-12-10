@@ -6,10 +6,7 @@ dry-run mode, verbose/quiet options, and parallel processing.
 """
 
 import pytest
-import argparse
-from unittest.mock import patch, Mock, call, MagicMock
-import sys
-import time
+from unittest.mock import patch, Mock
 from pathlib import Path
 import subattachextract
 
@@ -151,7 +148,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 1.5]):  # Mock timing
                         subattachextract.main()
 
@@ -190,7 +187,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=3)
 
             with patch('sys.argv', ['subattachextract', str(temp_dir)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 2.0]):
                         subattachextract.main()
 
@@ -210,7 +207,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     subattachextract.main()
 
                     # Verify extractor was created with dry_run=True
@@ -237,7 +234,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--quiet', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 1.0]):
                         subattachextract.main()
 
@@ -260,7 +257,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--parallel', '8', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     subattachextract.main()
 
                     # Verify extractor was created with custom worker count
@@ -279,7 +276,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=0)
 
             with patch('sys.argv', ['subattachextract', str(temp_dir)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     subattachextract.main()
 
                     # Should always log "Done." at the end
@@ -310,7 +307,7 @@ class TestMainFunction:
                 mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
                 with patch('sys.argv', ['subattachextract']):
-                    with patch('builtins.print') as mock_print:
+                    with patch('builtins.print'):
                         subattachextract.main()
 
                         # Should find files in current directory
@@ -331,7 +328,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=2)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     # Mock timing: start=0, end=3.5 seconds
                     with patch('time.time', side_effect=[0, 3.5]):
                         subattachextract.main()
@@ -376,7 +373,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=0)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     subattachextract.main()
 
                     # Should still print stats even after error
@@ -394,7 +391,7 @@ class TestMainFunction:
             mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', '--quiet', '--parallel', '6', str(mkv_file)]):
-                with patch('builtins.print') as mock_print:
+                with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 0.5]):
                         subattachextract.main()
 

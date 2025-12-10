@@ -8,12 +8,8 @@ filename sanitization, and batch processing with parallel execution.
 import pytest
 import json
 import subprocess
-import sys
-import time
-from unittest.mock import patch, Mock, call, MagicMock
+from unittest.mock import patch
 from pathlib import Path
-import tempfile
-from concurrent.futures import ThreadPoolExecutor
 import subattachextract
 
 
@@ -178,7 +174,7 @@ class TestAttachmentExtractor:
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'mkvmerge')
 
-            with patch('builtins.print') as mock_print:
+            with patch('builtins.print'):
                 with pytest.raises(SystemExit) as exc_info:
                     extractor.check_dependencies()
 

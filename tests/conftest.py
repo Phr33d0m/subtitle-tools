@@ -17,16 +17,6 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import shared fixtures (avoiding conflicts with existing ones)
-from tests.shared.fixtures import (
-    mock_subprocess_success,
-    mock_subprocess_failure,
-    mock_encoding_utf8,
-    mock_encoding_iso8859,
-    mock_encoding_unknown,
-    complex_subtitle_setup,
-    MockSubtitleFile,
-    mock_subtitle_file_factory,
-)
 
 
 @pytest.fixture
@@ -151,110 +141,6 @@ def fonts_dir(temp_dir, sample_font_file):
     return fonts_path
 
 
-@pytest.fixture
-def complex_subtitle_setup(temp_dir):
-    """Create a complex setup with multiple subtitles and fonts."""
-    # Create video
-    video_path = temp_dir / "complex_video.mkv"
-    video_path.write_text("dummy video content")
-
-    # Create multiple subtitle files
-    subtitles = {
-        "eng.srt": "1\n00:00:01,000 --> 00:00:02,000\nEnglish subtitle",
-        "fr.srt": "1\n00:00:01,000 --> 00:00:02,000\nFrench subtitle",
-        "se.srt": "1\n00:00:01,000 --> 00:00:02,000\nSvensk text",
-        "style.ass": """[V4+ Styles]
-Format: Name, Fontname, Fontsize
-Style: Default,Arial,20
-
-[Events]
-Format: Layer, Start, End, Style, Text
-Dialogue: 0,0:00:01.00,0:00:02.00,Default,Styled subtitle"""
-    }
-
-    subtitle_paths = {}
-    for filename, content in subtitles.items():
-        subtitle_path = temp_dir / f"complex_video.{filename}"
-        subtitle_path.write_text(content)
-        subtitle_paths[filename] = subtitle_path
-
-    # Create Fonts directory with multiple fonts
-    fonts_dir = temp_dir / "Fonts"
-    fonts_dir.mkdir()
-
-    font_files = {
-        "Arial.ttf": b"arial font content",
-        "Times.ttf": b"times font content",
-        "Custom.otf": b"custom font content"
-    }
-
-    for font_name, content in font_files.items():
-        font_path = fonts_dir / font_name
-        font_path.write_bytes(content)
-
-    return {
-        'video': video_path,
-        'subtitles': subtitle_paths,
-        'fonts_dir': fonts_dir,
-        'font_files': font_files
-    }
-
-
-@pytest.fixture
-def mock_subprocess_success():
-    """Mock successful subprocess calls."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
-            stdout="success",
-            stderr="",
-            returncode=0
-        )
-        yield mock_run
-
-
-@pytest.fixture
-def mock_subprocess_failure():
-    """Mock failed subprocess calls."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
-            stdout="",
-            stderr="mkvmerge error: something went wrong",
-            returncode=1
-        )
-        yield mock_run
-
-
-@pytest.fixture
-def mock_encoding_utf8():
-    """Mock UTF-8 encoding detection."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
-            stdout="utf-8",
-            returncode=0
-        )
-        yield mock_run
-
-
-@pytest.fixture
-def mock_encoding_iso8859():
-    """Mock ISO-8859-1 encoding detection."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
-            stdout="iso-8859-1",
-            returncode=0
-        )
-        yield mock_run
-
-
-@pytest.fixture
-def mock_encoding_unknown():
-    """Mock unknown encoding detection."""
-    with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
-            stdout="unknown-8bit",
-            returncode=0
-        )
-        yield mock_run
 
 
 # Helper functions for tests

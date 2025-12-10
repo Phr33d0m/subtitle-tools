@@ -5,7 +5,6 @@ Tests the behavior differences between --mode replace and --mode append,
 particularly around font handling and subtitle preservation.
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch, Mock
 import submerge
@@ -125,7 +124,7 @@ class TestReplaceMode:
 
         with patch('submerge.get_existing_font_attachments'):
             with patch('submerge.get_subtitle_track_ids'):
-                result = submerge.merge_video_with_subtitles(
+                submerge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
@@ -156,7 +155,7 @@ class TestReplaceMode:
             with patch('submerge.get_subtitle_track_ids') as mock_tracks:
                 mock_tracks.return_value = ["2"]
 
-                result = submerge.merge_video_with_subtitles(
+                submerge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
@@ -371,7 +370,7 @@ class TestAppendMode:
         with patch('submerge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["ExistingFont.ttf"]
 
-            result = submerge.merge_video_with_subtitles(
+            submerge.merge_video_with_subtitles(
                 video_path=video_path,
                 subtitle_files=subtitle_files,
                 font_attachments=font_attachments,

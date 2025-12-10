@@ -9,9 +9,7 @@ import pytest
 import json
 import subprocess
 import sys
-from unittest.mock import patch, Mock, MagicMock, call
-from pathlib import Path
-import tempfile
+from unittest.mock import patch
 import subextract
 from dataclasses import asdict
 
@@ -503,7 +501,7 @@ class TestExtractionProcess:
         error.stderr = "Extraction failed"
         mock_subprocess.side_effect = error
 
-        with patch('builtins.print') as mock_print:
+        with patch('builtins.print'):
             success, message = subextract.extract_subs_for_file(mkv_file, outdir)
 
             assert not success

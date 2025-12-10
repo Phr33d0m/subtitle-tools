@@ -8,21 +8,13 @@ the ass_qafix.py quality assurance and auto-fixer tool.
 import pytest
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import ass_qafix for testing
-import ass_qafix
 
 # Import shared fixtures
-from tests.shared.fixtures import (
-    temp_dir,
-    sample_video_file,
-    mock_subprocess_success,
-    mock_subprocess_failure,
-)
 
 
 @pytest.fixture
@@ -58,3 +50,9 @@ Dialogue: 0,25:00:00.00,25:00:01.00,Default,,0,0,0,,Another subtitle
 """
     ass_path.write_text(ass_content)
     return ass_path
+
+
+@pytest.fixture
+def test_data_path():
+    """Provide path to test data directory."""
+    return Path(__file__).parent / "test_data"

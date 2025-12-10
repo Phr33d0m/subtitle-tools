@@ -10,7 +10,6 @@ import tempfile
 import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
-from typing import Dict, List
 
 
 @pytest.fixture

@@ -5,10 +5,8 @@ Tests the complete merge workflow including subtitle processing,
 font handling, and mkvmerge command generation.
 """
 
-import pytest
 import subprocess
-from pathlib import Path
-from unittest.mock import patch, Mock, call
+from unittest.mock import patch, Mock
 import submerge
 
 
@@ -492,7 +490,7 @@ class TestProcessVideos:
                     extension=".srt",
                     priority=1
                 )
-                mock_subtitle2 = submerge.SubtitleFile(
+                submerge.SubtitleFile(
                     path=temp_dir / "video2.eng.srt",
                     language_code="eng",
                     extension=".srt",

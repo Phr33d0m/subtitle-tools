@@ -5,7 +5,6 @@ Tests individual functions and classes in isolation to ensure
 correct behavior of core utilities.
 """
 
-import pytest
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, Mock

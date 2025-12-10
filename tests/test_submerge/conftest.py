@@ -18,27 +18,15 @@ import submerge
 
 # Import shared fixtures
 from tests.shared.fixtures import (
-    sample_video_file,
-    sample_srt_file,
-    sample_ass_file,
-    fonts_dir,
-    mock_subprocess_success,
-    mock_subprocess_failure,
     mock_encoding_utf8,
     mock_encoding_iso8859,
     mock_encoding_unknown,
-    complex_subtitle_setup,
+    mock_subprocess_success,
+    mock_subprocess_failure,
+    complex_subtitle_setup
 )
 
 # Keep compatibility with existing global fixtures
-from tests.conftest import (
-    temp_dir,
-    mock_mkvmerge_available,
-    mock_file_command,
-    mock_mkvmerge_identify,
-    mock_mkvmerge_with_fonts,
-    sample_swedish_srt,
-)
 
 
 @pytest.fixture

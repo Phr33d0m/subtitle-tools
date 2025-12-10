@@ -8,7 +8,7 @@ the ocrp.py OCR processing tool.
 import pytest
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -17,12 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import ocrp
 
 # Import shared fixtures
-from tests.shared.fixtures import (
-    temp_dir,
-    sample_video_file,
-    mock_subprocess_success,
-    mock_subprocess_failure,
-)
 
 
 @pytest.fixture

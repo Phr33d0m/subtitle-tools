@@ -5,11 +5,7 @@ Tests edge cases and practical scenarios that users commonly encounter,
 including Swedish language mapping, encoding issues, and complex file naming.
 """
 
-import pytest
 import subprocess
-import tempfile
-import shutil
-from pathlib import Path
 from unittest.mock import patch, Mock
 import submerge
 
@@ -394,8 +390,7 @@ class TestFontScenarios:
 
     def test_font_deduplication_real_world(self, temp_dir, sample_video_file, sample_ass_file):
         """Test font deduplication with realistic font names."""
-        video_path = sample_video_file
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # Create fonts directory with variations of similar fonts
         fonts_dir = temp_dir / "Fonts"
@@ -466,7 +461,7 @@ class TestErrorRecoveryScenarios:
         try:
             no_perms = fonts_dir / "NoPermissions.otf"
             no_perms.chmod(0o000)
-        except:
+        except Exception:
             # Skip permission test if we can't set permissions
             pass
 

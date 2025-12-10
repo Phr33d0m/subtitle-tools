@@ -5,15 +5,8 @@ Tests end-to-end processing workflows, parallel execution,
 file handling, and complex extraction scenarios.
 """
 
-import pytest
-import json
-import subprocess
-import sys
 import time
-from unittest.mock import patch, Mock, call, MagicMock
-from pathlib import Path
-import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 import subattachextract
 
 

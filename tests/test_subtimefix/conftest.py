@@ -8,21 +8,13 @@ the subtimefix.py timestamp shifting tool.
 import pytest
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import subtimefix for testing
-import subtimefix
 
 # Import shared fixtures
-from tests.shared.fixtures import (
-    temp_dir,
-    sample_video_file,
-    mock_subprocess_success,
-    mock_subprocess_failure,
-)
 
 
 @pytest.fixture
