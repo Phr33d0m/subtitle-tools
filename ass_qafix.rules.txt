@@ -1,0 +1,340 @@
+ASS QA FIXER - RULES AND CHECKS DOCUMENTATION
+==============================================
+
+This document explains all the quality assurance checks and automatic fixes
+performed by the ASS QA Fixer tool in plain, non-technical language.
+
+
+================================================================================
+1. DUPLICATE LINE REMOVAL
+================================================================================
+
+What it does:
+  The tool removes exact duplicate subtitle lines. If two lines have the same
+  start time, end time, style, and text, only one is kept.
+
+Why this matters:
+  Sometimes during subtitle extraction or editing, the same line gets added
+  twice. This creates visual stuttering or flickering when watching.
+
+
+================================================================================
+2. EMPTY TEXT REMOVAL
+================================================================================
+
+What it does:
+  Removes subtitle lines that have no actual text content.
+
+Specifically removed:
+  - Lines with completely empty text
+  - Lines containing only a single dash: -
+  - Lines containing only an en-dash: -
+  - Lines containing only an em-dash: -
+  - Lines containing only a forward slash: /
+
+Why this matters:
+  OCR (optical character recognition) software sometimes creates "ghost" lines
+  with just punctuation marks instead of actual dialogue. These create
+  distracting empty subtitle boxes when watching.
+
+Note:
+  You can use --keep-empty-text flag to preserve these if needed.
+
+
+================================================================================
+3. FAKE TEXT / OCR ARTIFACT REMOVAL
+================================================================================
+
+What it does:
+  Removes lines that contain obvious OCR mistakes instead of real dialogue.
+
+Types of fake text detected and removed:
+
+  a) Pure Numbers
+     - Single digits like "1" or "5"
+     - Multiple digits like "42" or "123"
+     These are typically frame numbers or timecodes misread as dialogue.
+
+  b) Single Letters (except "I")
+     - Letters like "r", "A", "x" alone
+     - The letter "I" is kept because it's a valid English word
+     Examples removed: "r", "A", "n", "T"
+
+  c) Two-Letter Combinations
+     - Removed unless they form a valid English word
+     - "OK" is kept (valid word)
+     - "rx" is removed (not a word)
+
+  d) Letters with Trailing Punctuation
+     - "r." or "A -" are removed
+     - These are partial OCR reads of larger text
+
+  e) Multiple Dashes
+     - "--", "---", "- -" patterns are removed
+     - These are OCR misreadings of visual elements
+
+  f) Backticks
+     - Single or multiple backticks (`) are removed
+     - Often OCR mistakes for apostrophes or nothing
+
+  g) Replacement Characters
+     - Lines containing the box symbol are removed
+     - This indicates unreadable/corrupted text
+
+  h) Underscores
+     - "_", "__", "___" are removed
+     - OCR artifacts from visual lines or separators
+
+  i) Format Header Text
+     - Lines that accidentally contain subtitle format info
+     - Example: "Layer, Start, End, Style, Name..."
+
+  j) Single Chinese Characters (Dictionary Check)
+     - A single Chinese character is only kept if it exists in
+       a Chinese dictionary as a valid standalone word
+     - Random single characters are removed
+
+  k) Ultra-Short Single Chinese Characters
+     - Any single Chinese character that appears for less than 50
+       milliseconds (0.05 seconds) is removed regardless of whether
+       it's a valid word - it's too short to be readable
+
+
+================================================================================
+4. STYLE VALIDATION
+================================================================================
+
+What it does:
+  Checks that each subtitle line uses a style that actually exists in the
+  file's style definitions.
+
+How it fixes:
+  - If a style name doesn't match any defined style, it's replaced with "Default"
+  - Style matching is case-insensitive (so "default" matches "Default")
+  - If matched, the style name is normalized to match the defined spelling
+
+Why this matters:
+  Subtitles referencing non-existent styles may display incorrectly or use
+  fallback formatting. This ensures consistency.
+
+
+================================================================================
+5. LAYER NUMBER SANITIZATION
+================================================================================
+
+What it does:
+  Ensures the layer field contains a valid non-negative number.
+
+How it fixes:
+  - Empty layer values become "0"
+  - Invalid layer values (non-numbers) become "0"
+  - Negative layer values become "0"
+
+Why this matters:
+  Invalid layer numbers can cause subtitle display errors in some players.
+
+
+================================================================================
+6. INVISIBLE CHARACTER REMOVAL
+================================================================================
+
+What it does:
+  Removes invisible "garbage" characters that sometimes appear in text.
+
+Characters removed:
+  - Byte Order Mark (BOM) - invisible file format marker
+  - Zero-Width Space - invisible spacing character
+  - Left-to-Right Mark - text direction marker
+  - Right-to-Left Mark - text direction marker
+
+Why this matters:
+  These invisible characters can cause display issues, search problems,
+  or unexpected text behavior in some players.
+
+
+================================================================================
+7. CONSECUTIVE LINE MERGING (Same Text)
+================================================================================
+
+What it does:
+  Combines multiple subtitle lines that have the same text and appear
+  back-to-back within half a second (500ms) of each other.
+
+Example:
+  Before:
+    Line 1: 0:01:00.00 - 0:01:02.00  "Hello there"
+    Line 2: 0:01:02.00 - 0:01:04.00  "Hello there"
+  After:
+    Line 1: 0:01:00.00 - 0:01:04.00  "Hello there"
+
+Conditions for merging:
+  - Lines must be within 500ms (half second) gap of each other
+  - Text must be identical (or nearly identical for very short lines)
+  - Style, character name, margins, and effects must match
+
+Why this matters:
+  OCR software sometimes splits one continuous dialogue into multiple
+  small segments. This creates an annoying flickering effect.
+
+
+================================================================================
+8. SHORT ECHO LINE MERGING
+================================================================================
+
+What it does:
+  Detects a special OCR pattern where a valid dialogue line is paired with
+  a very short (under 50ms) "echo" line containing similar but slightly
+  different text.
+
+Patterns handled:
+
+  Pattern A - Short echo AFTER long line:
+    Line 1: 0:05:34.80 - 0:05:37.12  "Hello world"     (2.32 seconds)
+    Line 2: 0:05:37.12 - 0:05:37.16  "Hello worid"     (40 milliseconds)
+    Result: 0:05:34.80 - 0:05:37.16  "Hello world"     (keeps long line's text)
+
+  Pattern B - Short echo BEFORE long line:
+    Line 1: 0:05:34.80 - 0:05:34.84  "Hello worid"     (40 milliseconds)
+    Line 2: 0:05:34.84 - 0:05:37.16  "Hello world"     (2.32 seconds)
+    Result: 0:05:34.80 - 0:05:37.16  "Hello world"     (keeps long line's text)
+
+Conditions for merging:
+  - Lines must be exactly consecutive (no gap at all)
+  - One line must be under 50 milliseconds
+  - Texts must be at least 70% similar
+  - Style, character name, margins, and effects must match
+  - The LONGER line's text is always kept
+
+Why this matters:
+  OCR sometimes creates these "ghost" echoes due to frame-by-frame processing.
+  The short line usually contains more OCR errors than the longer line.
+
+
+================================================================================
+9. ALTERNATING OCR VARIANT MERGING
+================================================================================
+
+What it does:
+  Detects and merges a pattern where OCR alternates between two similar
+  text variants (typically traditional vs simplified Chinese characters).
+
+Example:
+  Line 1: "Traditional Chinese text"   (Variant A)
+  Line 2: "Simplified Chinese text"    (Variant B)
+  Line 3: "Traditional Chinese text"   (Variant A)
+  Line 4: "Simplified Chinese text"    (Variant B)
+  ...continues alternating...
+
+Result:
+  Single line spanning the entire time with the first variant's text.
+
+Conditions for merging:
+  - All lines must be exactly consecutive (no gaps)
+  - Must follow A-B-A-B... pattern
+  - A and B must be at least 70% similar (OCR variants)
+  - At least 3 lines needed to confirm pattern (A, B, A)
+  - Style, character name, margins, and effects must match
+
+Why this matters:
+  Some OCR software processes frames alternately and produces different
+  character variants for each frame. This creates rapid-fire text that
+  flickers between variants.
+
+
+================================================================================
+10. OVERLAPPING TIMESTAMP FIXES
+================================================================================
+
+What it does:
+  Fixes cases where one subtitle line's end time overlaps with the next
+  line's start time by a tiny amount (under 20 milliseconds).
+
+Example:
+  Before:
+    Line 1: 0:01:00.00 - 0:01:02.01  (ends at 2.01)
+    Line 2: 0:01:02.00 - 0:01:04.00  (starts at 2.00 - overlap!)
+  After:
+    Line 1: 0:01:00.00 - 0:01:02.00  (swapped to match)
+    Line 2: 0:01:02.01 - 0:01:04.00  (swapped to match)
+
+Conditions:
+  - Only fixes overlaps of 20 milliseconds or less
+  - Larger overlaps are left unchanged (may be intentional)
+
+Why this matters:
+  Small timing overlaps can cause subtitle display glitches where two
+  lines briefly appear on screen together.
+
+
+================================================================================
+11. SHORT DURATION WARNINGS
+================================================================================
+
+What it does:
+  Identifies subtitle lines that are shorter than 250 milliseconds (1/4 second)
+  and issues a warning. These lines are NOT automatically removed.
+
+Why this matters:
+  Lines this short are often OCR errors that weren't properly merged with
+  adjacent lines. They may be too fast to read comfortably.
+
+  These warnings help you identify potential problems that may need
+  manual review.
+
+
+================================================================================
+12. STYLE CONSISTENCY ACROSS FILES
+================================================================================
+
+What it does:
+  When processing multiple files at once, the tool captures the style
+  definitions from the first file and applies them to all subsequent files.
+
+Why this matters:
+  Episode series should have consistent styling. This ensures all files
+  in a batch use the same fonts, colors, and formatting definitions.
+
+
+================================================================================
+SUMMARY OF ACTIONS
+================================================================================
+
+REMOVED (lines deleted):
+  - Exact duplicate lines
+  - Empty or artifact-only text lines
+  - Fake text / OCR garbage
+
+MERGED (multiple lines combined):
+  - Consecutive lines with same text
+  - Short echo lines paired with valid dialogue
+  - Alternating OCR variant patterns
+
+FIXED (values corrected):
+  - Invalid or missing style names
+  - Invalid layer numbers
+  - Tiny timestamp overlaps
+  - Invisible garbage characters
+
+WARNED (flagged but not changed):
+  - Very short duration lines (under 250ms)
+
+
+================================================================================
+COMMAND LINE OPTIONS
+================================================================================
+
+--inplace
+  Overwrites the original files. Without this flag, the tool creates
+  new files with ".fixed" added to the name.
+
+--keep-empty-text
+  Preserves subtitle lines with empty text instead of removing them.
+
+--dry-run
+  Analyzes files and shows what would be changed, but doesn't actually
+  modify anything. Useful for previewing changes.
+
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
