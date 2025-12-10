@@ -12,7 +12,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set
 import time
 
 
@@ -159,7 +159,7 @@ class AttachmentExtractor:
         try:
             dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            result = subprocess.run(
+            subprocess.run(
                 ['mkvextract', 'attachments', str(mkv_path),
                  f"{attachment.id}:{str(dest_path)}"],
                 capture_output=True, check=True
@@ -298,15 +298,28 @@ def main() -> None:
         '--parallel', '-p', type=int, default=4,
         help='Number of parallel workers (default: 4)'
     )
+    parser.add_argument(
+        '-o', '--output', type=str, default=None,
+        help='Output directory for extracted attachments (must exist)'
+    )
 
     args = parser.parse_args()
 
     # Determine output root
     path = Path(args.path)
-    if path.is_file():
-        outroot = Path.cwd()
+    if args.output:
+        outroot = Path(args.output)
+        if not outroot.is_dir():
+            print(f"Error: Output directory '{args.output}' does not exist.", file=sys.stderr)
+            sys.exit(1)
     else:
-        outroot = path
+        # Use input directory as output root, or parent directory if input is a file
+        if path.is_dir():
+            outroot = path
+        elif path.is_file():
+            outroot = path.parent
+        else:
+            outroot = Path.cwd()
 
     # Create extractor
     extractor = AttachmentExtractor(

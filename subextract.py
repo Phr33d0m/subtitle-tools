@@ -299,6 +299,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         metavar="N",
         help="Number of parallel workers (default: 1)",
     )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default=None,
+        help="Output directory for extracted subtitles (must exist)",
+    )
     args = parser.parse_args(argv)
 
     # Validate parallel argument
@@ -306,14 +312,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Error: Number of parallel workers must be at least 1.", file=sys.stderr)
         return 1
 
+    # Determine output directory
+    if args.output:
+        outdir = Path(args.output)
+        if not outdir.is_dir():
+            print(f"Error: Output directory '{args.output}' does not exist.", file=sys.stderr)
+            return 1
+    else:
+        outdir = Path.cwd()
+
     if not args.path:
-        cur = Path.cwd()
-        mkv_files = list(iter_mkvs_in_dir(cur))
+        mkv_files = list(iter_mkvs_in_dir(Path.cwd()))
         if not mkv_files:
             print("No .mkv files found in current directory.")
             return 0
 
-        successful, failed = process_mkvs(mkv_files, cur, args.parallel)
+        successful, failed = process_mkvs(mkv_files, outdir, args.parallel)
         if args.parallel > 1:
             print(f"Processed with {args.parallel} workers:")
         print(f"Successful: {successful}, Failed: {failed}")
@@ -331,7 +345,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"No .mkv files found in '{p.name}'.")
             return 0
 
-        successful, failed = process_mkvs(mkv_files, p, args.parallel)
+        successful, failed = process_mkvs(mkv_files, outdir, args.parallel)
         if args.parallel > 1:
             print(f"Processed with {args.parallel} workers:")
         print(f"Successful: {successful}, Failed: {failed}")
@@ -342,7 +356,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0 if failed == 0 else 1
 
     if p.is_file() and p.suffix.lower() == ".mkv":
-        success, message = extract_subs_for_file(p, Path.cwd())
+        success, message = extract_subs_for_file(p, outdir)
         if success:
             print("Done.")
         else:
