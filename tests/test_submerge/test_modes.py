@@ -50,34 +50,33 @@ class TestReplaceMode:
                 assert 'Arial.ttf' in cmd_str
 
     def test_replace_mode_without_external_fonts(self, temp_dir, sample_video_file, sample_srt_file, mock_mkvmerge_with_fonts):
-        """Test replace mode when no external fonts are available (font preservation)."""
+        """Test replace mode when no external fonts are available - should still use --no-subtitles."""
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
         subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
 
-        # Mock existing fonts in the video
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
-            mock_fonts.return_value = ["Arial.ttf", "Times.ttf"]
-            with patch('submerge.get_subtitle_track_ids') as mock_tracks:
-                mock_tracks.return_value = ["2"]
+        # Mock encoding detection
+        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+            mock_encoding.return_value = "UTF-8"
 
-                with patch('subprocess.run') as mock_run:
-                    mock_run.return_value = Mock(returncode=0)
+            # Capture the logging to extract the command in dry_run mode
+            with patch('logging.info') as mock_log:
+                result = submerge.merge_video_with_subtitles(
+                    video_path=video_path,
+                    subtitle_files=subtitle_files,
+                    font_attachments=[],  # No external fonts
+                    temp_dir=None,
+                    dry_run=True,
+                    mode="replace"
+                )
 
-                    result = submerge.merge_video_with_subtitles(
-                        video_path=video_path,
-                        subtitle_files=subtitle_files,
-                        font_attachments=[],  # No external fonts
-                        temp_dir=None,
-                        dry_run=True,
-                        mode="replace"
-                    )
-
-                    assert result is True
-                    # Should NOT include --no-subtitles (preserves fonts)
-                    cmd_str = ' '.join(mock_run.call_args[0][0])
-                    assert '--no-subtitles' not in cmd_str
+                assert result is True
+                # Should include --no-subtitles (removes existing subs, preserves font attachments)
+                mock_log.assert_called()
+                log_call_args = mock_log.call_args
+                cmd_str = log_call_args[0][1] if len(log_call_args[0]) > 1 else str(log_call_args[0][0])
+                assert '--no-subtitles' in cmd_str
 
     def test_replace_mode_no_ass_subtitles(self, temp_dir, sample_video_file, sample_srt_file):
         """Test replace mode with only SRT subtitles (no fonts needed)."""
@@ -123,18 +122,17 @@ class TestReplaceMode:
         )]
 
         with patch('submerge.get_existing_font_attachments'):
-            with patch('submerge.get_subtitle_track_ids'):
-                submerge.merge_video_with_subtitles(
-                    video_path=video_path,
-                    subtitle_files=subtitle_files,
-                    font_attachments=font_attachments,
-                    temp_dir=None,
-                    dry_run=True,
-                    mode="replace"
-                )
+            submerge.merge_video_with_subtitles(
+                video_path=video_path,
+                subtitle_files=subtitle_files,
+                font_attachments=font_attachments,
+                temp_dir=None,
+                dry_run=True,
+                mode="replace"
+            )
 
-                # Should not preserve fonts when external fonts are available
-                # No need to check specific log messages as they're tested in integration tests
+            # Should not preserve fonts when external fonts are available
+            # No need to check specific log messages as they're tested in integration tests
 
     @patch('subprocess.run')
     def test_replace_mode_logging_without_fonts(self, mock_run):
@@ -152,20 +150,18 @@ class TestReplaceMode:
 
         with patch('submerge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["ExistingFont.ttf"]
-            with patch('submerge.get_subtitle_track_ids') as mock_tracks:
-                mock_tracks.return_value = ["2"]
 
-                submerge.merge_video_with_subtitles(
-                    video_path=video_path,
-                    subtitle_files=subtitle_files,
-                    font_attachments=font_attachments,
-                    temp_dir=None,
-                    dry_run=True,
-                    mode="replace"
-                )
+            submerge.merge_video_with_subtitles(
+                video_path=video_path,
+                subtitle_files=subtitle_files,
+                font_attachments=font_attachments,
+                temp_dir=None,
+                dry_run=True,
+                mode="replace"
+            )
 
-                # Should preserve fonts when no external fonts are available
-                # This is tested indirectly by the command generation in integration tests
+            # Replace mode uses --no-subtitles which preserves font attachments
+            # This is tested indirectly by the command generation in integration tests
 
 
 class TestAppendMode:
@@ -472,24 +468,23 @@ class TestModeTransitions:
         with patch('submerge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
             with patch('submerge.get_existing_font_attachments'):
-                with patch('submerge.get_subtitle_track_ids'):
-                    with patch('logging.info') as mock_log:
-                        submerge.merge_video_with_subtitles(
-                            video_path=video_path,
-                            subtitle_files=subtitle_files,
-                            font_attachments=font_attachments,
-                            temp_dir=None,
-                            dry_run=True,
-                            mode="replace"
-                        )
-                        # Find the call that contains the command
-                        cmd_call = None
-                        for call in mock_log.call_args_list:
-                            args = call[0]
-                            if len(args) >= 2 and 'DRY RUN: Would execute:' in args[0]:
-                                cmd_call = args[1]
-                                break
-                        commands['replace'] = cmd_call
+                with patch('logging.info') as mock_log:
+                    submerge.merge_video_with_subtitles(
+                        video_path=video_path,
+                        subtitle_files=subtitle_files,
+                        font_attachments=font_attachments,
+                        temp_dir=None,
+                        dry_run=True,
+                        mode="replace"
+                    )
+                    # Find the call that contains the command
+                    cmd_call = None
+                    for call in mock_log.call_args_list:
+                        args = call[0]
+                        if len(args) >= 2 and 'DRY RUN: Would execute:' in args[0]:
+                            cmd_call = args[1]
+                            break
+                    commands['replace'] = cmd_call
 
         # Test append mode
         with patch('submerge.detect_subtitle_encoding') as mock_encoding:
@@ -531,35 +526,48 @@ class TestModeTransitions:
         commands = {}
 
         # Test replace mode without fonts
-        with patch('subprocess.run') as mock_run:
-            mock_run.return_value = Mock(returncode=0)
-            with patch('submerge.get_existing_font_attachments') as mock_fonts:
-                mock_fonts.return_value = ["ExistingFont.ttf"]
-                with patch('submerge.get_subtitle_track_ids'):
-                    submerge.merge_video_with_subtitles(
-                        video_path=video_path,
-                        subtitle_files=subtitle_files,
-                        font_attachments=font_attachments,
-                        temp_dir=None,
-                        dry_run=True,
-                        mode="replace"
-                    )
-                    commands['replace'] = ' '.join(mock_run.call_args[0][0])
-
-        # Test append mode without fonts
-        with patch('subprocess.run') as mock_run:
-            mock_run.return_value = Mock(returncode=0)
-            with patch('submerge.get_existing_font_attachments'):
+        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+            mock_encoding.return_value = "UTF-8"
+            with patch('logging.info') as mock_log:
                 submerge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
                     temp_dir=None,
                     dry_run=True,
-                    mode="append"
+                    mode="replace"
                 )
-                commands['append'] = ' '.join(mock_run.call_args[0][0])
+                # Find the call that contains the command
+                cmd_call = None
+                for call in mock_log.call_args_list:
+                    args = call[0]
+                    if len(args) >= 2 and 'DRY RUN: Would execute:' in args[0]:
+                        cmd_call = args[1]
+                        break
+                commands['replace'] = cmd_call
 
-        # Both should NOT have --no-subtitles (preserving fonts or no fonts to replace)
-        assert '--no-subtitles' not in commands['replace']
+        # Test append mode without fonts
+        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+            mock_encoding.return_value = "UTF-8"
+            with patch('submerge.get_existing_font_attachments'):
+                with patch('logging.info') as mock_log:
+                    submerge.merge_video_with_subtitles(
+                        video_path=video_path,
+                        subtitle_files=subtitle_files,
+                        font_attachments=font_attachments,
+                        temp_dir=None,
+                        dry_run=True,
+                        mode="append"
+                    )
+                    # Find the call that contains the command
+                    cmd_call = None
+                    for call in mock_log.call_args_list:
+                        args = call[0]
+                        if len(args) >= 2 and 'DRY RUN: Would execute:' in args[0]:
+                            cmd_call = args[1]
+                            break
+                    commands['append'] = cmd_call
+
+        # Replace mode should have --no-subtitles, append mode should not
+        assert '--no-subtitles' in commands['replace']
         assert '--no-subtitles' not in commands['append']

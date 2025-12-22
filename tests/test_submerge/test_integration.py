@@ -55,35 +55,34 @@ class TestMergeVideoWithSubtitles:
                     assert '--attach-file' in cmd_str
 
     def test_merge_video_with_subtitles_replace_mode_no_fonts(self, temp_dir, sample_video_file, sample_srt_file, mock_mkvmerge_with_fonts):
-        """Test replace mode without external fonts (font preservation)."""
+        """Test replace mode without external fonts - should still use --no-subtitles."""
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
         subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
 
-        # Mock font detection to simulate existing fonts
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
-            mock_fonts.return_value = ["Arial.ttf", "Times.ttf"]
-            with patch('submerge.get_subtitle_track_ids') as mock_tracks:
-                mock_tracks.return_value = ["2", "3"]
+        # Mock encoding detection
+        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+            mock_encoding.return_value = "UTF-8"
 
-                with patch('subprocess.run') as mock_run:
-                    mock_run.return_value = Mock(returncode=0)
+            # Capture the logging to extract the command in dry_run mode
+            with patch('logging.info') as mock_log:
+                result = submerge.merge_video_with_subtitles(
+                    video_path=video_path,
+                    subtitle_files=subtitle_files,
+                    font_attachments=[],  # No external fonts
+                    temp_dir=None,
+                    dry_run=True,
+                    mode="replace"
+                )
 
-                    result = submerge.merge_video_with_subtitles(
-                        video_path=video_path,
-                        subtitle_files=subtitle_files,
-                        font_attachments=[],  # No external fonts
-                        temp_dir=None,
-                        dry_run=True,
-                        mode="replace"
-                    )
+                assert result is True
 
-                    assert result is True
-
-                    # Should NOT include --no-subtitles when preserving fonts
-                    cmd_str = ' '.join(mock_run.call_args[0][0])
-                    assert '--no-subtitles' not in cmd_str
+                # Should include --no-subtitles in replace mode (removes existing subs, preserves fonts)
+                mock_log.assert_called()
+                log_call_args = mock_log.call_args
+                cmd_str = log_call_args[0][1] if len(log_call_args[0]) > 1 else str(log_call_args[0][0])
+                assert '--no-subtitles' in cmd_str
 
     def test_merge_video_with_subtitles_append_mode(self, temp_dir, sample_video_file, sample_srt_file, fonts_dir, mock_subprocess_success):
         """Test append mode behavior."""

@@ -238,33 +238,6 @@ class TestFontHandling:
 
         assert fonts == []
 
-    @patch('subprocess.run')
-    def test_get_subtitle_track_ids_success(self, mock_run):
-        """Test successful subtitle track ID detection."""
-        mock_run.return_value = Mock(
-            stdout="Track ID 2: subtitles (SubRip)\nTrack ID 3: subtitles (SubRip)",
-            returncode=0
-        )
-
-        video_path = Path("/test/video.mkv")
-        track_ids = submerge.get_subtitle_track_ids(video_path)
-
-        assert track_ids == ["2", "3"]
-
-    @patch('subprocess.run')
-    def test_get_subtitle_track_ids_no_subtitles(self, mock_run):
-        """Test subtitle track ID detection with no subtitles."""
-        mock_run.return_value = Mock(
-            stdout="Track ID 1: video (AVC/H.264)\nTrack ID 2: audio (AAC)",
-            returncode=0
-        )
-
-        video_path = Path("/test/video.mkv")
-        track_ids = submerge.get_subtitle_track_ids(video_path)
-
-        assert track_ids == []
-
-
 class TestUtilityFunctions:
     """Test general utility functions."""
 

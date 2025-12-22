@@ -23,9 +23,19 @@ import logging
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+import threading
+import time
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeRemainingColumn
+from rich.table import Table
 
 
 # ------------------------------ Constants ------------------------------ #
@@ -123,6 +133,28 @@ LANGUAGE_NAME_MAPPING = {
 
 
 # ------------------------------ Data Structures ------------------------------ #
+
+class FileStatus(Enum):
+    """File processing status."""
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    DRY_RUN = "dry_run"
+
+
+@dataclass
+class MergeFileProgress:
+    """Track per-file merge processing state."""
+    file_path: Path
+    status: FileStatus
+    subtitle_languages: List[str] = field(default_factory=list)
+    replace_subs: bool = False
+    replace_fonts: bool = False
+    start_time: Optional[float] = None
+    duration: Optional[float] = None
+    error_message: Optional[str] = None
+
 
 @dataclass(frozen=True)
 class SubtitleFile:
@@ -224,6 +256,304 @@ class ProcessingStats:
                 f"  Fonts embedded: {self.fonts_embedded}")
 
 
+class SubtitleMergeProcessor:
+    """Handles subtitle merge processing with Rich table display."""
+
+    def __init__(self, mode: str = "replace", verbose: bool = False, dry_run: bool = False):
+        self.mode = mode
+        self.verbose = verbose
+        self.dry_run = dry_run
+        self.console = Console()
+        self._file_progress: List[MergeFileProgress] = []
+        self._progress_lock = threading.Lock()
+
+    def _create_table(self) -> Table:
+        """Create Rich table for displaying file processing status."""
+        table = Table(expand=True, show_header=True, header_style="bold cyan", box=box.SIMPLE_HEAD)
+
+        table.add_column("File", style="cyan", no_wrap=True, ratio=4)
+        table.add_column("Subtitles", style="green", no_wrap=True, ratio=3)
+        table.add_column("Repl", style="yellow", no_wrap=True, ratio=1, justify="center")
+        table.add_column("Fonts", style="yellow", no_wrap=True, ratio=1, justify="center")
+        table.add_column("Status", style="white", no_wrap=True, ratio=2)
+        table.add_column("Time", style="magenta", no_wrap=True, ratio=1)
+
+        return table
+
+    def _get_status_style(self, status: FileStatus) -> str:
+        """Get style for status text."""
+        styles = {
+            FileStatus.QUEUED: "dim",
+            FileStatus.PROCESSING: "yellow",
+            FileStatus.COMPLETED: "green",
+            FileStatus.FAILED: "red",
+            FileStatus.DRY_RUN: "cyan",
+        }
+        return styles.get(status, "white")
+
+    def _format_duration(self, duration: Optional[float]) -> str:
+        """Format duration for display."""
+        if duration is None:
+            return "—"
+        elif duration < 60:
+            return f"{duration:.1f}s"
+        else:
+            minutes = int(duration // 60)
+            seconds = duration % 60
+            return f"{minutes}m {seconds:.0f}s"
+
+    def _update_table_rows(self, table: Table, max_rows: int) -> None:
+        """Update table rows with current file progress."""
+        with self._progress_lock:
+            # Sort: processing first, then queued, then completed/failed
+            status_priority = {
+                FileStatus.PROCESSING: 0,
+                FileStatus.QUEUED: 1,
+                FileStatus.FAILED: 2,
+                FileStatus.COMPLETED: 3,
+                FileStatus.DRY_RUN: 4,
+            }
+
+            sorted_files = sorted(
+                self._file_progress,
+                key=lambda fp: (status_priority.get(fp.status, 5), fp.file_path.name)
+            )
+
+            # Show up to max_rows
+            display_files = sorted_files[:max_rows]
+
+            for file_prog in display_files:
+                # Format subtitle languages
+                subs_str = ", ".join(file_prog.subtitle_languages) if file_prog.subtitle_languages else "—"
+
+                # Checkmarks for replace columns
+                replace_subs = "✓" if file_prog.replace_subs else ""
+                replace_fonts = "✓" if file_prog.replace_fonts else ""
+
+                # Status with style
+                status_names = {
+                    FileStatus.QUEUED: "Queued",
+                    FileStatus.PROCESSING: "Processing",
+                    FileStatus.COMPLETED: "Done",
+                    FileStatus.FAILED: "Failed",
+                    FileStatus.DRY_RUN: "Dry Run",
+                }
+                status_text = status_names.get(file_prog.status, file_prog.status.value)
+                status_style = self._get_status_style(file_prog.status)
+
+                # Calculate duration
+                if file_prog.status == FileStatus.PROCESSING and file_prog.start_time is not None:
+                    elapsed = time.time() - file_prog.start_time
+                    duration = self._format_duration(elapsed)
+                else:
+                    duration = self._format_duration(file_prog.duration)
+
+                table.add_row(
+                    file_prog.file_path.name,
+                    subs_str,
+                    replace_subs,
+                    replace_fonts,
+                    f"[{status_style}]{status_text}[/{status_style}]",
+                    duration
+                )
+
+    def _update_file_progress(
+        self,
+        file_path: Path,
+        status: FileStatus,
+        subtitle_languages: Optional[List[str]] = None,
+        replace_subs: bool = False,
+        replace_fonts: bool = False,
+        duration: Optional[float] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update file progress information."""
+        with self._progress_lock:
+            # Find existing entry
+            for prog in self._file_progress:
+                if prog.file_path == file_path:
+                    prog.status = status
+                    if subtitle_languages is not None:
+                        prog.subtitle_languages = subtitle_languages
+                    prog.replace_subs = replace_subs
+                    prog.replace_fonts = replace_fonts
+                    prog.duration = duration
+                    prog.error_message = error_message
+                    if status == FileStatus.PROCESSING:
+                        prog.start_time = time.time()
+                    return
+
+            # Create new entry
+            start_time = time.time() if status == FileStatus.PROCESSING else None
+            self._file_progress.append(MergeFileProgress(
+                file_path=file_path,
+                status=status,
+                subtitle_languages=subtitle_languages or [],
+                replace_subs=replace_subs,
+                replace_fonts=replace_fonts,
+                start_time=start_time,
+                duration=duration,
+                error_message=error_message
+            ))
+
+    def process_videos(
+        self,
+        video_files: List[Path],
+        font_attachments: List[FontAttachment],
+        max_workers: int = 1
+    ) -> ProcessingStats:
+        """Process multiple video files with Rich Live table display."""
+        stats = ProcessingStats()
+        stats.total_videos = len(video_files)
+
+        if not video_files:
+            self.console.print("No video files found to process")
+            return stats
+
+        # Pre-scan: find videos with matching subtitles (skip others)
+        processable_videos: List[Tuple[Path, List[SubtitleFile]]] = []
+        for video_path in video_files:
+            base_path = video_path.with_suffix('')
+            subtitle_files = find_subtitle_files(base_path)
+            if subtitle_files:
+                processable_videos.append((video_path, subtitle_files))
+            else:
+                stats.skipped_videos += 1
+
+        if not processable_videos:
+            self.console.print("No videos with matching subtitle files found")
+            return stats
+
+        # Determine display rows
+        display_rows = min(len(processable_videos), max(max_workers, 10))
+
+        # Determine replace flags
+        has_external_fonts = bool(font_attachments)
+
+        # Initialize progress for all processable videos
+        for video_path, subtitle_files in processable_videos:
+            languages = [get_language_name(sub.language_code) for sub in subtitle_files]
+            has_ass = any(sub.extension.lower() == '.ass' for sub in subtitle_files)
+            replace_fonts = self.mode == "replace" and has_ass and has_external_fonts
+
+            initial_status = FileStatus.DRY_RUN if self.dry_run else FileStatus.QUEUED
+            self._update_file_progress(
+                video_path,
+                initial_status,
+                subtitle_languages=languages,
+                replace_subs=(self.mode == "replace"),
+                replace_fonts=replace_fonts
+            )
+
+        successful = 0
+        failed = 0
+        total = len(processable_videos)
+        lock = threading.Lock()
+
+        def process_one(video_path: Path, subtitle_files: List[SubtitleFile]) -> None:
+            nonlocal successful, failed
+
+            languages = [get_language_name(sub.language_code) for sub in subtitle_files]
+            has_ass = any(sub.extension.lower() == '.ass' for sub in subtitle_files)
+            replace_fonts_flag = self.mode == "replace" and has_ass and has_external_fonts
+
+            if not self.dry_run:
+                self._update_file_progress(
+                    video_path,
+                    FileStatus.PROCESSING,
+                    subtitle_languages=languages,
+                    replace_subs=(self.mode == "replace"),
+                    replace_fonts=replace_fonts_flag
+                )
+
+            start_time = time.time()
+
+            success, message = process_single_video(
+                video_path, subtitle_files, font_attachments, None, self.dry_run, self.mode
+            )
+
+            elapsed = time.time() - start_time
+
+            with lock:
+                if success:
+                    successful += 1
+                    stats.processed_videos += 1
+                    stats.total_subtitle_tracks += len(subtitle_files)
+                    if has_ass and font_attachments:
+                        stats.fonts_embedded += len(font_attachments)
+                else:
+                    failed += 1
+                    stats.failed_videos += 1
+
+            final_status = FileStatus.COMPLETED if success else FileStatus.FAILED
+            if self.dry_run:
+                final_status = FileStatus.DRY_RUN
+
+            self._update_file_progress(
+                video_path,
+                final_status,
+                subtitle_languages=languages,
+                replace_subs=(self.mode == "replace"),
+                replace_fonts=replace_fonts_flag,
+                duration=elapsed if not self.dry_run else None,
+                error_message=message if not success else None
+            )
+
+        # Process with Rich Live display
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(process_one, video_path, subtitle_files)
+                for video_path, subtitle_files in processable_videos
+            ]
+
+            # Create progress bar
+            overall_progress = Progress(
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn("{task.description}"),
+                TimeRemainingColumn(),
+                console=self.console
+            )
+            progress_task = overall_progress.add_task("Processing files...", total=total)
+
+            with Live(console=self.console, auto_refresh=True) as live:
+                while True:
+                    # Create current display
+                    table = self._create_table()
+                    self._update_table_rows(table, display_rows)
+
+                    # Panel title
+                    title = "Subtitle Merge Status"
+                    if self.dry_run:
+                        title += " [DRY RUN]"
+                    dashboard_panel = Panel(
+                        table,
+                        title=title,
+                        border_style="blue",
+                        padding=(0, 1)
+                    )
+
+                    # Update progress bar
+                    completed = successful + failed
+                    overall_progress.update(progress_task, completed=completed)
+
+                    # Update display
+                    live.update(Group(dashboard_panel, overall_progress))
+
+                    # Check if done
+                    with lock:
+                        if completed >= total:
+                            break
+
+                    time.sleep(1)
+
+        # Print final summary
+        self.console.print()
+        self.console.print(f"Completed: {successful} successful, {failed} failed, {stats.skipped_videos} skipped")
+
+        return stats
+
+
 # ------------------------------ Utilities ------------------------------ #
 
 def setup_logging(verbose: bool = False) -> None:
@@ -245,10 +575,9 @@ def check_dependencies() -> None:
             missing_commands.append(cmd)
 
     if missing_commands:
-        logging.error("Required commands not found: %s",
-                      ', '.join(missing_commands))
-        logging.error(
-            "Please install MKVToolNix and ensure 'file' command is available")
+        console = Console()
+        console.print(f"[red]Error:[/red] Required commands not found: {', '.join(missing_commands)}")
+        console.print("[dim]Please install MKVToolNix and ensure 'file' command is available[/dim]")
         sys.exit(1)
 
 
@@ -497,49 +826,6 @@ def get_existing_font_attachments(video_path: Path) -> List[str]:
         return []
 
 
-def get_subtitle_track_ids(video_path: Path) -> List[str]:
-    """Get list of subtitle track IDs from an existing video file.
-
-    Returns:
-        List of subtitle track IDs found in the video file.
-    """
-    try:
-        # Use mkvmerge to identify tracks in the video file
-        result = subprocess.run(
-            ['mkvmerge', '--identify', str(video_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-
-        subtitle_track_ids = []
-        for line in result.stdout.splitlines():
-            # Look for subtitle track lines
-            if 'Track ID' in line and 'subtitles' in line:
-                # Extract track ID from line like: 'Track ID 2: subtitles (SubRip)'
-                if ':' in line:
-                    parts = line.split(':')
-                    if len(parts) >= 1:
-                        track_part = parts[0].strip()
-                        if 'Track ID' in track_part:
-                            track_id = track_part.replace('Track ID', '').strip()
-                            subtitle_track_ids.append(track_id)
-
-        if subtitle_track_ids:
-            logging.debug("Found %d existing subtitle track(s) in %s: %s",
-                         len(subtitle_track_ids), video_path.name, ', '.join(subtitle_track_ids))
-        else:
-            logging.debug("No existing subtitle tracks found in %s", video_path.name)
-
-        return subtitle_track_ids
-
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.debug("Failed to identify existing tracks in %s: %s",
-                     video_path.name, e)
-        return []
-
-
 def should_attach_font(font_path: Path, existing_fonts: List[str], mode: str) -> bool:
     """Determine if a font should be attached based on mode and existing fonts.
 
@@ -619,34 +905,18 @@ def merge_video_with_subtitles(
     has_external_fonts = bool(font_attachments)
     has_ass_subtitles = any(sub.extension.lower() == '.ass' for sub in subtitle_files)
 
-    # Get existing subtitle track IDs and font attachments (needed for font preservation logic)
-    existing_subtitle_track_ids = []
+    # Track existing fonts for append mode duplicate detection
     existing_fonts = []
 
-    if mode == "replace" and has_ass_subtitles and not has_external_fonts:
-        # Get existing subtitle track IDs to exclude them while preserving fonts
-        existing_subtitle_track_ids = get_subtitle_track_ids(video_path)
-        existing_fonts = get_existing_font_attachments(video_path)
-        logging.info("Replace mode: No external fonts found, preserving existing fonts")
-        # Use video without --no-subtitles to preserve attachments (fonts)
-        cmd.append(str(video_path))
-        # Note: We cannot easily exclude existing subtitle tracks while preserving fonts
-        # with standard mkvmerge flags. In this case, we'll append new subtitles to existing ones
-        logging.debug("Appending new subtitles to existing ones while preserving fonts (font-preserve replace mode)")
-        if existing_subtitle_track_ids:
-            logging.info("Note: Existing subtitle tracks (%s) will be preserved along with fonts",
-                         ', '.join(existing_subtitle_track_ids))
-
-    elif mode == "replace" and has_ass_subtitles and has_external_fonts:
-        logging.info("Replace mode: External fonts available, replacing existing fonts")
+    if mode == "replace":
+        # Replace mode: remove existing subtitles, add new ones
+        # Note: --no-subtitles only removes subtitle tracks, not font attachments
         cmd.extend(['--no-subtitles', str(video_path)])
-        logging.debug("Removing existing subtitles and attachments (full replace mode)")
-
-    elif mode == "replace":
-        # No ASS subtitles, use normal --no-subtitles behavior
-        cmd.extend(['--no-subtitles', str(video_path)])
-        logging.debug("Removing existing subtitles (no ASS subtitles, replace mode)")
-
+        logging.debug("Removing existing subtitles (replace mode)")
+        if has_ass_subtitles and not has_external_fonts:
+            # Get existing fonts for the font attachment logic below
+            existing_fonts = get_existing_font_attachments(video_path)
+            logging.info("Replace mode: preserving existing embedded fonts (no external Fonts folder)")
     else:  # append mode
         cmd.append(str(video_path))
         logging.debug("Preserving existing subtitles (append mode)")
@@ -975,76 +1245,76 @@ Examples:
 
 def main() -> int:
     """Main entry point."""
+    console = Console()
+
     try:
         args = parse_arguments()
 
-        setup_logging(args.verbose)
+        # Setup logging for debug messages only when verbose
+        if args.verbose:
+            setup_logging(args.verbose)
 
         # Check dependencies
         check_dependencies()
 
         # Validate arguments
         if args.parallel < 1:
-            logging.error("Number of parallel workers must be at least 1")
+            console.print("[red]Error:[/red] Number of parallel workers must be at least 1")
             return 1
 
         # Determine root directory and validate path
         input_path = Path(args.path).resolve()
 
         if not (input_path.is_dir() or is_video_file(input_path)):
-            logging.error("Path must be a directory or a video file: %s", input_path)
+            console.print(f"[red]Error:[/red] Path must be a directory or a video file: {input_path}")
             return 1
 
         # Determine root directory for font collection
         if input_path.is_dir():
             root_dir = input_path
-            logging.info("Processing directory: %s", root_dir)
         else:
             root_dir = input_path.parent
-            logging.info("Processing single video file: %s", input_path)
 
-        if args.dry_run:
-            logging.info("DRY RUN MODE - No files will be modified")
-
-        if args.parallel > 1:
-            logging.info("Using %d parallel workers", args.parallel)
-
-        # Collect font attachments
-        font_attachments = collect_font_attachments(root_dir, args.recursive)
+        # Collect font attachments (suppress logging output, use console)
+        fonts_dir = root_dir / FONTS_DIR_NAME
+        font_attachments = []
+        if fonts_dir.is_dir():
+            font_extensions = {'.ttf', '.otf', '.ttc', '.woff',
+                               '.woff2', '.TTF', '.OTF', '.TTC', '.WOFF', '.WOFF2'}
+            for font_path in fonts_dir.glob('*'):
+                if font_path.is_file() and font_path.suffix in font_extensions:
+                    mime_type = get_mime_type(font_path)
+                    font_attachments.append(FontAttachment(path=font_path, mime_type=mime_type))
 
         # Find video files
         if input_path.is_dir():
             video_files = find_video_files(root_dir, args.recursive)
             if not video_files:
-                logging.info("No video files found in %s", root_dir)
+                console.print(f"No video files found in {root_dir}")
                 return 0
-            logging.info("Found %d video file(s) to process", len(video_files))
         else:
             video_files = [input_path]
-            logging.info("Processing 1 video file")
 
-        # Log the selected mode
-        logging.info("Using %s mode for subtitle processing", args.mode)
-
-        # Process videos
-        stats = process_videos(
-            video_files=video_files,
-            font_attachments=font_attachments,
-            max_workers=args.parallel,
-            dry_run=args.dry_run,
-            mode=args.mode
+        # Create processor and process videos with Rich display
+        processor = SubtitleMergeProcessor(
+            mode=args.mode,
+            verbose=args.verbose,
+            dry_run=args.dry_run
         )
 
-        # Print final statistics
-        logging.info(str(stats))
+        stats = processor.process_videos(
+            video_files=video_files,
+            font_attachments=font_attachments,
+            max_workers=args.parallel
+        )
 
         return 0 if stats.failed_videos == 0 else 1
 
     except KeyboardInterrupt:
-        logging.error("Operation interrupted by user")
+        console.print("\n[yellow]Operation interrupted by user[/yellow]")
         return 1
     except Exception as e:
-        logging.error("Unexpected error: %s", e)
+        console.print(f"[red]Unexpected error:[/red] {e}")
         return 1
 
 

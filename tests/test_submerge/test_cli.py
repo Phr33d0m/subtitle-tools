@@ -97,7 +97,7 @@ class TestArgumentParsing:
 class TestMainFunction:
     """Test main function behavior."""
 
-    @patch('submerge.process_videos')
+    @patch('submerge.SubtitleMergeProcessor.process_videos')
     def test_main_single_video_success(self, mock_process_videos, temp_dir, sample_video_file):
         """Test main function with single video processing success."""
         mock_process_videos.return_value = submerge.ProcessingStats(
@@ -110,16 +110,12 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0  # Success exit code
+            mock_process_videos.assert_called_once()
 
-                assert result == 0  # Success exit code
-                # For single video files, find_video_files is NOT called
-                mock_process_videos.assert_called_once()
-
-    @patch('submerge.process_videos')
+    @patch('submerge.SubtitleMergeProcessor.process_videos')
     @patch('submerge.find_video_files')
     def test_main_directory_processing(self, mock_find_videos, mock_process_videos, temp_dir):
         """Test main function with directory processing."""
@@ -140,18 +136,13 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', str(temp_dir)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0  # Success exit code
 
-                assert result == 0  # Success exit code
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_main_with_failures(self, mock_find_videos, mock_process_videos, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor.process_videos')
+    def test_main_with_failures(self, mock_process_videos, temp_dir, sample_video_file):
         """Test main function with processing failures."""
-        mock_find_videos.return_value = [sample_video_file]
         mock_process_videos.return_value = submerge.ProcessingStats(
             total_videos=1,
             processed_videos=0,
@@ -162,19 +153,15 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 1  # Failure exit code
 
-                assert result == 1  # Failure exit code
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_main_append_mode(self, mock_find_videos, mock_process_videos, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_main_append_mode(self, mock_processor_class, temp_dir, sample_video_file):
         """Test main function with append mode."""
-        mock_find_videos.return_value = [sample_video_file]
-        mock_process_videos.return_value = submerge.ProcessingStats(
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
             total_videos=1,
             processed_videos=1,
             skipped_videos=0,
@@ -184,23 +171,21 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', '--mode', 'append', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0
+            # Verify processor was created with mode="append"
+            mock_processor_class.assert_called_once_with(
+                mode='append',
+                verbose=False,
+                dry_run=False
+            )
 
-                assert result == 0
-                # Verify process_videos was called with mode="append"
-                mock_process_videos.assert_called_once()
-                call_args = mock_process_videos.call_args
-                assert call_args.kwargs['mode'] == 'append'
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_main_dry_run(self, mock_find_videos, mock_process_videos, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_main_dry_run(self, mock_processor_class, temp_dir, sample_video_file):
         """Test main function with dry run."""
-        mock_find_videos.return_value = [sample_video_file]
-        mock_process_videos.return_value = submerge.ProcessingStats(
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
             total_videos=1,
             processed_videos=1,
             skipped_videos=0,
@@ -210,22 +195,21 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', '--dry-run', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0
+            # Verify processor was created with dry_run=True
+            mock_processor_class.assert_called_once_with(
+                mode='replace',
+                verbose=False,
+                dry_run=True
+            )
 
-                assert result == 0
-                # Verify process_videos was called with dry_run=True
-                call_args = mock_process_videos.call_args
-                assert call_args.kwargs['dry_run'] is True
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_main_custom_max_workers(self, mock_find_videos, mock_process_videos, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_main_custom_max_workers(self, mock_processor_class, temp_dir, sample_video_file):
         """Test main function with custom max_workers."""
-        mock_find_videos.return_value = [sample_video_file]
-        mock_process_videos.return_value = submerge.ProcessingStats(
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
             total_videos=1,
             processed_videos=1,
             skipped_videos=0,
@@ -235,15 +219,12 @@ class TestMainFunction:
         )
 
         with patch('sys.argv', ['submerge', '-p', '2', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
-
-                assert result == 0
-                # Verify process_videos was called with max_workers=2
-                call_args = mock_process_videos.call_args
-                assert call_args.kwargs['max_workers'] == 2
+            assert result == 0
+            # Verify process_videos was called with max_workers=2
+            call_args = mock_processor.process_videos.call_args
+            assert call_args.kwargs['max_workers'] == 2
 
     def test_main_no_mkvmerge(self):
         """Test main function when mkvmerge is not available."""
@@ -259,26 +240,28 @@ class TestMainFunction:
                     # Should call sys.exit(1) when dependencies are missing
                     mock_exit.assert_called_once_with(1)
 
-    def test_main_keyboard_interrupt(self, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_main_keyboard_interrupt(self, mock_processor_class, temp_dir, sample_video_file):
         """Test main function with keyboard interrupt."""
-        with patch('submerge.process_videos') as mock_process:
-            mock_process.side_effect = KeyboardInterrupt()
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.side_effect = KeyboardInterrupt()
 
-            with patch('sys.argv', ['submerge', str(sample_video_file)]):
-                result = submerge.main()
+        with patch('sys.argv', ['submerge', str(sample_video_file)]):
+            result = submerge.main()
 
-                # Should return 1 when keyboard interrupt occurs
-                assert result == 1
+            # Should return 1 when keyboard interrupt occurs
+            assert result == 1
 
-    def test_main_unexpected_error(self, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_main_unexpected_error(self, mock_processor_class, temp_dir, sample_video_file):
         """Test main function with unexpected error."""
-        with patch('submerge.process_videos') as mock_process:
-            mock_process.side_effect = Exception("Unexpected error")
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.side_effect = Exception("Unexpected error")
 
-            with patch('sys.argv', ['submerge', str(sample_video_file)]):
-                result = submerge.main()
+        with patch('sys.argv', ['submerge', str(sample_video_file)]):
+            result = submerge.main()
 
-                assert result == 1  # Failure exit code
+            assert result == 1  # Failure exit code
 
 
 class TestCliIntegration:
@@ -346,7 +329,8 @@ class TestCliIntegration:
 
                 assert result == 0  # No files is not an error
 
-    def test_cli_mixed_file_types(self, temp_dir):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_cli_mixed_file_types(self, mock_processor_class, temp_dir):
         """Test CLI behavior with mixed file types in directory."""
         # Create mixed file types
         video1 = temp_dir / "movie.mkv"
@@ -363,71 +347,68 @@ class TestCliIntegration:
 
         video_files = [video1, video2]
 
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
+            total_videos=2, processed_videos=0, skipped_videos=2,
+            failed_videos=0, total_subtitle_tracks=0, fonts_embedded=0
+        )
+
         with patch('submerge.find_video_files') as mock_find:
             mock_find.return_value = video_files
 
-            with patch('submerge.find_subtitle_files') as mock_find_subs:
-                mock_find_subs.return_value = []
+            with patch('sys.argv', ['submerge', str(temp_dir)]):
+                result = submerge.main()
 
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
-
-                with patch('submerge.process_videos') as mock_process:
-                    mock_process.return_value = submerge.ProcessingStats(total_videos=2, processed_videos=0, skipped_videos=2, failed_videos=0, total_subtitle_tracks=0, fonts_embedded=0)
-
-                    with patch('sys.argv', ['submerge', str(temp_dir)]):
-                        result = submerge.main()
-
-                        assert result == 0
-                        # Should only process video files, ignore others
-                        mock_find.assert_called_once_with(temp_dir, False)
+                assert result == 0
+                # Should only process video files, ignore others
+                mock_find.assert_called_once_with(temp_dir, False)
 
 
 class TestModeSpecificCli:
     """Test mode-specific CLI behavior."""
 
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_cli_replace_mode_default(self, mock_find, mock_process, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_cli_replace_mode_default(self, mock_processor_class, temp_dir, sample_video_file):
         """Test that replace mode is the default CLI behavior."""
-        mock_find.return_value = [sample_video_file]
-        mock_process.return_value = submerge.ProcessingStats(total_videos=1, processed_videos=1, skipped_videos=0, failed_videos=0, total_subtitle_tracks=1, fonts_embedded=0)
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
+            total_videos=1, processed_videos=1, skipped_videos=0,
+            failed_videos=0, total_subtitle_tracks=1, fonts_embedded=0
+        )
 
         with patch('sys.argv', ['submerge', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0
+            # Verify replace mode is used by default
+            mock_processor_class.assert_called_once_with(
+                mode='replace',
+                verbose=False,
+                dry_run=False
+            )
 
-                assert result == 0
-                # Verify replace mode is used by default
-                call_args = mock_process.call_args
-                assert call_args.kwargs['mode'] == 'replace'
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_cli_append_mode_explicit(self, mock_find, mock_process, temp_dir, sample_video_file):
+    @patch('submerge.SubtitleMergeProcessor')
+    def test_cli_append_mode_explicit(self, mock_processor_class, temp_dir, sample_video_file):
         """Test explicit append mode in CLI."""
-        mock_find.return_value = [sample_video_file]
-        mock_process.return_value = submerge.ProcessingStats(total_videos=1, processed_videos=1, skipped_videos=0, failed_videos=0, total_subtitle_tracks=1, fonts_embedded=0)
+        mock_processor = mock_processor_class.return_value
+        mock_processor.process_videos.return_value = submerge.ProcessingStats(
+            total_videos=1, processed_videos=1, skipped_videos=0,
+            failed_videos=0, total_subtitle_tracks=1, fonts_embedded=0
+        )
 
         with patch('sys.argv', ['submerge', '--mode', 'append', str(sample_video_file)]):
-            with patch('submerge.collect_font_attachments') as mock_fonts:
-                mock_fonts.return_value = []
+            result = submerge.main()
 
-                result = submerge.main()
+            assert result == 0
+            # Verify append mode is used
+            mock_processor_class.assert_called_once_with(
+                mode='append',
+                verbose=False,
+                dry_run=False
+            )
 
-                assert result == 0
-                # Verify append mode is used
-                call_args = mock_process.call_args
-                assert call_args.kwargs['mode'] == 'append'
-
-    @patch('submerge.process_videos')
-    @patch('submerge.find_video_files')
-    def test_cli_mode_case_insensitive(self, mock_find, mock_process, temp_dir, sample_video_file):
+    def test_cli_mode_case_insensitive(self, temp_dir, sample_video_file):
         """Test that mode argument is case sensitive (should fail with wrong case)."""
-        mock_find.return_value = [sample_video_file]
-
         with patch('sys.argv', ['submerge', '--mode', 'APPEND', str(sample_video_file)]):
             with pytest.raises(SystemExit):
                 submerge.main()

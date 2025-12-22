@@ -11,13 +11,14 @@ only hardsubbed content (no extractable subtitles) are automatically removed.
 """
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 from rich.console import Console
 from rich.panel import Panel
@@ -159,14 +160,116 @@ def has_work_zip(input_root: Path, rel_path: Path) -> bool:
     return (source_dir / "_work.zip").exists()
 
 
-def get_zip_path(output_root: Path, rel_path: Path, has_bgpp_tag: bool = False) -> Path:
-    """Get the zip file path for a given relative directory path."""
+def extract_version_from_filename(filename: str) -> Optional[int]:
+    """Extract version number from an MKV filename.
+
+    Looks for pattern: 'SeriesName - ###vX [garbage].mkv' where X is the version.
+
+    Returns:
+        The version number as int, or None if no version found.
+
+    Examples:
+        'Zui Qiang Shengji - 009v3 [1080p].mkv' → 3
+        'Zui Qiang Shengji - 008 [1080p].mkv' → None
+    """
+    match = re.search(r"- \d+v(\d+)\s*\[", filename)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def get_max_version_in_dir(directory: Path) -> Optional[int]:
+    """Find the maximum version number across all MKV files in a directory.
+
+    Returns:
+        The highest version found, or None if no versioned files exist.
+    """
+    if not directory.exists():
+        return None
+
+    max_version: Optional[int] = None
+    for f in directory.iterdir():
+        if f.is_file() and f.suffix.lower() == ".mkv":
+            version = extract_version_from_filename(f.name)
+            if version is not None:
+                if max_version is None or version > max_version:
+                    max_version = version
+
+    return max_version
+
+
+def get_bgpp_info(input_root: Path, rel_path: Path) -> Optional[int]:
+    """Get BGPP version info for a directory.
+
+    Returns:
+        None if not a BGPP release (no _work.zip)
+        0 if BGPP release but no versioned files
+        >= 1 for the max version found in MKV filenames
+    """
+    source_dir = input_root / rel_path
+    if not (source_dir / "_work.zip").exists():
+        return None
+
+    max_version = get_max_version_in_dir(source_dir)
+    return max_version if max_version is not None else 0
+
+
+def get_zip_path(output_root: Path, rel_path: Path, bgpp_version: Optional[int] = None) -> Path:
+    """Get the zip file path for a given relative directory path.
+
+    Args:
+        output_root: The output root directory
+        rel_path: The relative path of the directory
+        bgpp_version: None = no BGPP tag, 0 = [BGPP], >= 1 = [BGPPvN]
+    """
     zips_dir = output_root / "_zips"
-    suffix = " [BGPP]" if has_bgpp_tag else ""
+    if bgpp_version is None:
+        suffix = ""
+    elif bgpp_version == 0:
+        suffix = " [BGPP]"
+    else:
+        suffix = f" [BGPPv{bgpp_version}]"
+
     if rel_path.parent.parts:
         return zips_dir / rel_path.parent / f"{rel_path.name}{suffix}.zip"
     else:
         return zips_dir / f"{rel_path.name}{suffix}.zip"
+
+
+def cleanup_old_bgpp_zips(output_root: Path, rel_path: Path, current_version: Optional[int], verbose: bool) -> None:
+    """Delete all BGPP-related zips that don't match the current version.
+
+    This cleans up:
+    - Untagged zips (when BGPP is now needed)
+    - [BGPP] zips (when versioned is now needed)
+    - [BGPPvN] zips where N != current_version
+    """
+    zips_dir = output_root / "_zips"
+    if rel_path.parent.parts:
+        zip_parent = zips_dir / rel_path.parent
+    else:
+        zip_parent = zips_dir
+
+    if not zip_parent.exists():
+        return
+
+    base_name = rel_path.name
+
+    # Build list of zips to check
+    candidates = [
+        (zip_parent / f"{base_name}.zip", None),  # untagged
+        (zip_parent / f"{base_name} [BGPP].zip", 0),  # unversioned BGPP
+    ]
+    # Check for versioned BGPP zips (v1 through v99)
+    for v in range(1, 100):
+        candidates.append((zip_parent / f"{base_name} [BGPPv{v}].zip", v))
+
+    # Delete any that don't match current_version
+    for zip_path, version in candidates:
+        if zip_path.exists() and version != current_version:
+            zip_path.unlink()
+            if verbose:
+                console.print(f"  [yellow]Deleted old zip:[/yellow] {zip_path.relative_to(output_root)}")
 
 
 def create_zip_for_dir(output_root: Path, rel_path: Path, input_root: Path, dry_run: bool, verbose: bool) -> bool:
@@ -189,18 +292,13 @@ def create_zip_for_dir(output_root: Path, rel_path: Path, input_root: Path, dry_
     if not has_files:
         return False
 
-    # Check if this is a BGPP-tagged release (has _work.zip in source)
-    needs_bgpp_tag = has_work_zip(input_root, rel_path)
+    # Get BGPP version info (None = not BGPP, 0 = BGPP without version, >= 1 = BGPPvN)
+    bgpp_version = get_bgpp_info(input_root, rel_path)
 
-    # If needs BGPP tag, delete existing untagged zip first
-    if needs_bgpp_tag:
-        untagged_zip = get_zip_path(output_root, rel_path, has_bgpp_tag=False)
-        if untagged_zip.exists():
-            untagged_zip.unlink()
-            if verbose:
-                console.print(f"  [yellow]Deleted untagged:[/yellow] {untagged_zip.relative_to(output_root)}")
+    # Clean up old BGPP zips that don't match current version
+    cleanup_old_bgpp_zips(output_root, rel_path, bgpp_version, verbose)
 
-    zip_path = get_zip_path(output_root, rel_path, has_bgpp_tag=needs_bgpp_tag)
+    zip_path = get_zip_path(output_root, rel_path, bgpp_version=bgpp_version)
     zip_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Create zip excluding .zip files
@@ -214,6 +312,44 @@ def create_zip_for_dir(output_root: Path, rel_path: Path, input_root: Path, dry_
         console.print(f"  [blue]Zipped:[/blue] {zip_path.relative_to(output_root)}")
 
     return True
+
+
+def needs_zip_update(output_root: Path, rel_path: Path, bgpp_version: Optional[int]) -> bool:
+    """Check if a zip needs to be created or updated.
+
+    Returns True if:
+    - The correct zip doesn't exist
+    - An old version zip exists but the version has changed
+    """
+    correct_zip = get_zip_path(output_root, rel_path, bgpp_version=bgpp_version)
+    if not correct_zip.exists():
+        return True
+
+    # Check if any old zips exist that need cleanup
+    zips_dir = output_root / "_zips"
+    if rel_path.parent.parts:
+        zip_parent = zips_dir / rel_path.parent
+    else:
+        zip_parent = zips_dir
+
+    if not zip_parent.exists():
+        return False
+
+    base_name = rel_path.name
+
+    # Check for any existing zip that doesn't match current version
+    candidates = [
+        (zip_parent / f"{base_name}.zip", None),
+        (zip_parent / f"{base_name} [BGPP].zip", 0),
+    ]
+    for v in range(1, 100):
+        candidates.append((zip_parent / f"{base_name} [BGPPv{v}].zip", v))
+
+    for zip_path, version in candidates:
+        if zip_path.exists() and version != bgpp_version:
+            return True  # Old version exists, needs update
+
+    return False
 
 
 def find_missing_zips(output_root: Path, input_root: Path) -> List[Path]:
@@ -246,12 +382,8 @@ def find_missing_zips(output_root: Path, input_root: Path) -> List[Path]:
                     for f in sub_subdir.iterdir()
                 )
                 if has_subs:
-                    needs_bgpp = has_work_zip(input_root, sub_rel_path)
-                    zip_path = get_zip_path(output_root, sub_rel_path, has_bgpp_tag=needs_bgpp)
-                    # Also check if untagged exists but tagged is needed
-                    untagged_zip = get_zip_path(output_root, sub_rel_path, has_bgpp_tag=False)
-                    needs_upgrade = needs_bgpp and untagged_zip.exists() and not zip_path.exists()
-                    if not zip_path.exists() or needs_upgrade:
+                    bgpp_version = get_bgpp_info(input_root, sub_rel_path)
+                    if needs_zip_update(output_root, sub_rel_path, bgpp_version):
                         missing.append(sub_rel_path)
 
         # Check if parent directory needs zip (has subdirs with subs or direct subs)
@@ -260,12 +392,8 @@ def find_missing_zips(output_root: Path, input_root: Path) -> List[Path]:
             for sub in subdir.iterdir() if sub.is_dir()
         )
         if has_any_content:
-            needs_bgpp = has_work_zip(input_root, rel_path)
-            zip_path = get_zip_path(output_root, rel_path, has_bgpp_tag=needs_bgpp)
-            # Also check if untagged exists but tagged is needed
-            untagged_zip = get_zip_path(output_root, rel_path, has_bgpp_tag=False)
-            needs_upgrade = needs_bgpp and untagged_zip.exists() and not zip_path.exists()
-            if not zip_path.exists() or needs_upgrade:
+            bgpp_version = get_bgpp_info(input_root, rel_path)
+            if needs_zip_update(output_root, rel_path, bgpp_version):
                 missing.append(rel_path)
 
     return missing

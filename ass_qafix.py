@@ -34,7 +34,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set
 from rapidfuzz.distance import Levenshtein
 from rich.console import Console
 from rich.table import Table
@@ -335,6 +335,7 @@ def _get_enchant_dict():
             os.dup2(devnull, 2)
             try:
                 import enchant
+
                 _enchant_dict = enchant.Dict("en_US")
             finally:
                 os.dup2(stderr_fd, 2)
@@ -415,34 +416,39 @@ def is_fake_text(text: str) -> bool:
             return True
 
     # Single CJK character: check against jieba3 dictionary
-    if len(t) == 1 and '\u4e00' <= t <= '\u9fff':
+    if len(t) == 1 and "\u4e00" <= t <= "\u9fff":
         if not is_valid_cjk_char(t):
             return True
 
     return False
 
 
-def texts_match_for_merge(text1: str, text2: str, duration_cs: Optional[int] = None) -> bool:
+def texts_match_for_merge(text1: str, text2: str, duration1_cs: Optional[int] = None, duration2_cs: Optional[int] = None) -> bool:
     """
     Check if two texts should be considered matching for merge purposes.
 
     - Exact match: Always allowed
-    - Fuzzy match (edit distance = 1): Only allowed if duration < MIN_DURATION_CS
-      This prevents merging legitimate dialogue like "first layer" vs "second layer"
-      while allowing OCR artifact cleanup (very short lines with OCR errors)
+    - Fuzzy match (edit distance = 1): Only allowed if EITHER line's duration < MIN_DURATION_CS
+      This prevents merging legitimate dialogue like "Go!" vs "No!" (both long)
+      while allowing OCR artifact cleanup (short lines with OCR errors)
 
     Args:
         text1: First text to compare
         text2: Second text to compare
-        duration_cs: Duration of the first line in centiseconds (for fuzzy match safeguard)
+        duration1_cs: Duration of the first line in centiseconds
+        duration2_cs: Duration of the second line in centiseconds
 
     Returns:
-        True if texts match (exactly or within fuzzy tolerance for short lines)
+        True if texts match (exactly or within fuzzy tolerance if either line is short)
     """
     if text1 == text2:
         return True
-    # Only allow fuzzy matching for short-duration lines (OCR artifacts)
-    if duration_cs is not None and duration_cs < MIN_DURATION_CS:
+    # Allow fuzzy matching if EITHER line is short (likely OCR artifact)
+    either_short = (
+        (duration1_cs is not None and duration1_cs < MIN_DURATION_CS) or
+        (duration2_cs is not None and duration2_cs < MIN_DURATION_CS)
+    )
+    if either_short:
         return Levenshtein.distance(text1, text2) == 1
     return False
 
@@ -696,7 +702,7 @@ def merge_consecutive_dialogues(dialogue_lines: List[str], fields_order: List[st
             if (
                 gap_cs is not None
                 and gap_cs <= MAX_GAP_CS
-                and texts_match_for_merge(merged_text, next_dialogue["text"], current_duration_cs)
+                and texts_match_for_merge(merged_text, next_dialogue["text"], current_duration_cs, next_duration_cs)
                 and current["style"] == next_dialogue["style"]
                 and current["name"] == next_dialogue["name"]
                 and current["marginl"] == next_dialogue["marginl"]
@@ -797,12 +803,7 @@ def merge_alternating_ocr_variants(dialogue_lines: List[str], fields_order: List
             second_end_cs = time_to_cs(second["end"])
             third_start_cs = time_to_cs(third["start"])
 
-            is_consecutive = (
-                first_end_cs is not None and second_start_cs is not None and
-                second_end_cs is not None and third_start_cs is not None and
-                first_end_cs == second_start_cs and
-                second_end_cs == third_start_cs
-            )
+            is_consecutive = first_end_cs is not None and second_start_cs is not None and second_end_cs is not None and third_start_cs is not None and first_end_cs == second_start_cs and second_end_cs == third_start_cs
 
             # Check if texts follow A, B, A pattern where A != B but A and B are similar
             text_a = first["text"]
@@ -810,19 +811,19 @@ def merge_alternating_ocr_variants(dialogue_lines: List[str], fields_order: List
             text_third = third["text"]
 
             is_alternating = (
-                text_a != text_b and  # A and B are different
-                text_a == text_third and  # Third matches first (A, B, A pattern)
-                texts_are_ocr_variants(text_a, text_b)  # A and B are similar variants
+                text_a != text_b  # A and B are different
+                and text_a == text_third  # Third matches first (A, B, A pattern)
+                and texts_are_ocr_variants(text_a, text_b)  # A and B are similar variants
             )
 
             # Check other fields match
             fields_match = (
-                first["style"] == second["style"] == third["style"] and
-                first["name"] == second["name"] == third["name"] and
-                first["marginl"] == second["marginl"] == third["marginl"] and
-                first["marginr"] == second["marginr"] == third["marginr"] and
-                first["marginv"] == second["marginv"] == third["marginv"] and
-                first["effect"] == second["effect"] == third["effect"]
+                first["style"] == second["style"] == third["style"]
+                and first["name"] == second["name"] == third["name"]
+                and first["marginl"] == second["marginl"] == third["marginl"]
+                and first["marginr"] == second["marginr"] == third["marginr"]
+                and first["marginv"] == second["marginv"] == third["marginv"]
+                and first["effect"] == second["effect"] == third["effect"]
             )
 
             if is_consecutive and is_alternating and fields_match:
@@ -849,14 +850,7 @@ def merge_alternating_ocr_variants(dialogue_lines: List[str], fields_order: List
                             break
 
                     # Check fields match
-                    if not (
-                        next_d["style"] == first["style"] and
-                        next_d["name"] == first["name"] and
-                        next_d["marginl"] == first["marginl"] and
-                        next_d["marginr"] == first["marginr"] and
-                        next_d["marginv"] == first["marginv"] and
-                        next_d["effect"] == first["effect"]
-                    ):
+                    if not (next_d["style"] == first["style"] and next_d["name"] == first["name"] and next_d["marginl"] == first["marginl"] and next_d["marginr"] == first["marginr"] and next_d["marginv"] == first["marginv"] and next_d["effect"] == first["effect"]):
                         break
 
                     merged_end = next_d["end"]
@@ -877,7 +871,7 @@ def merge_alternating_ocr_variants(dialogue_lines: List[str], fields_order: List
                 }
                 merged_line = rebuild_dialogue_line(fields_order, merged_values)
                 merged_dialogues.append(merged_line)
-                merges_count += (j - i - 1)  # Count how many lines were merged
+                merges_count += j - i - 1  # Count how many lines were merged
                 i = j
                 continue
 
