@@ -7,7 +7,7 @@ with the same text and contiguous timestamps into a single line.
 
 from pathlib import Path
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestConsecutiveDialogueMerging:

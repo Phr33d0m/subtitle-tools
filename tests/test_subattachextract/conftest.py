@@ -1,21 +1,18 @@
 """
-Subattachextract-specific pytest configuration and fixtures.
+Sub-attachment-extract-specific pytest configuration and fixtures.
 
 This module provides fixtures and configuration specific to testing
-the subattachextract.py attachment extraction tool.
+the sub-attachment-extract.py attachment extraction tool.
 """
 
 import pytest
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
-# Add project root to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from tests.conftest import import_tool
 
-# Import subattachextract for testing
-
-# Import shared fixtures
+# Import sub-attachment-extract for testing
+sub_attachment_extract = import_tool("sub-attachment-extract")
 
 
 @pytest.fixture

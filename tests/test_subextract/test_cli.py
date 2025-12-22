@@ -8,7 +8,7 @@ parallel worker validation, and integration with extraction functionality.
 from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
-import subextract
+from tests.test_subextract.conftest import sub_extract
 
 
 class TestArgumentParsing:
@@ -19,13 +19,13 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (1, 0, 0)
 
                 with patch('sys.argv', ['subextract', str(mkv_file)]):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     # Verify process_files was called with the correct file
                     mock_processor.process_files.assert_called_once()
@@ -40,13 +40,13 @@ class TestArgumentParsing:
             mkv_file = temp_dir / f"test{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (2, 0, 0)
 
                 with patch('sys.argv', ['subextract', str(temp_dir), '--parallel', '4']):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     # Verify parallel argument was parsed correctly
                     mock_processor.process_files.assert_called_once()
@@ -63,13 +63,13 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subextract.need') as mock_need:
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need') as mock_need:
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (1, 0, 0)
 
                 with patch('sys.argv', ['subextract', str(mkv_file)]):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     mock_need.assert_any_call('mkvmerge')
                     mock_need.assert_any_call('mkvextract')
@@ -81,13 +81,13 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (0, 1, 0)  # 1 failed
 
                 with patch('sys.argv', ['subextract', str(mkv_file)]):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     assert result == 1
 
@@ -98,13 +98,13 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (3, 0, 0)
 
                 with patch('sys.argv', ['subextract', str(temp_dir)]):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     mock_processor.process_files.assert_called_once()
                     assert result == 0
@@ -116,13 +116,13 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (2, 1, 0)  # 1 failed
 
                 with patch('sys.argv', ['subextract', str(temp_dir)]):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     assert result == 1
 
@@ -134,9 +134,9 @@ class TestMainFunction:
             import os
             os.chdir(temp_dir)
 
-            with patch('subextract.need'):
+            with patch('sub_extract.need'):
                 with patch('sys.argv', ['subextract']):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     # No MKV files should return 0
                     assert result == 0
@@ -156,13 +156,13 @@ class TestMainFunction:
             import os
             os.chdir(temp_dir)
 
-            with patch('subextract.need'):
-                with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+            with patch('sub_extract.need'):
+                with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                     mock_processor = mock_processor_class.return_value
                     mock_processor.process_files.return_value = (2, 0, 0)
 
                     with patch('sys.argv', ['subextract']):
-                        result = subextract.main()
+                        result = sub_extract.main()
 
                         mock_processor.process_files.assert_called_once()
                         assert result == 0
@@ -176,13 +176,13 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (4, 0, 0)
 
                 with patch('sys.argv', ['subextract', str(temp_dir), '--parallel', '4']):
-                    result = subextract.main()
+                    result = sub_extract.main()
 
                     mock_processor.process_files.assert_called_once()
                     call_args = mock_processor.process_files.call_args
@@ -195,26 +195,26 @@ class TestMainFunction:
         (temp_dir / "movie.mp4").write_bytes(b"video content")
         (temp_dir / "movie.srt").write_bytes(b"subtitle content")
 
-        with patch('subextract.need'):
+        with patch('sub_extract.need'):
             with patch('sys.argv', ['subextract', str(temp_dir)]):
-                result = subextract.main()
+                result = sub_extract.main()
 
                 # No MKV files should return 0
                 assert result == 0
 
     def test_main_invalid_parallel_value(self, temp_dir):
         """Test main function with invalid parallel worker count."""
-        with patch('subextract.need'):
+        with patch('sub_extract.need'):
             with patch('sys.argv', ['subextract', '--parallel', '0']):
-                result = subextract.main()
+                result = sub_extract.main()
 
                 assert result == 1
 
     def test_main_negative_parallel_value(self, temp_dir):
         """Test main function with negative parallel worker count."""
-        with patch('subextract.need'):
+        with patch('sub_extract.need'):
             with patch('sys.argv', ['subextract', '--parallel', '-5']):
-                result = subextract.main()
+                result = sub_extract.main()
 
                 assert result == 1
 
@@ -223,9 +223,9 @@ class TestMainFunction:
         txt_file = temp_dir / "document.txt"
         txt_file.write_text("not an mkv file")
 
-        with patch('subextract.need'):
+        with patch('sub_extract.need'):
             with patch('sys.argv', ['subextract', str(txt_file)]):
-                result = subextract.main()
+                result = sub_extract.main()
 
                 assert result == 1
 
@@ -233,9 +233,9 @@ class TestMainFunction:
         """Test main function with non-existent path."""
         non_existent = temp_dir / "nonexistent"
 
-        with patch('subextract.need'):
+        with patch('sub_extract.need'):
             with patch('sys.argv', ['subextract', str(non_existent)]):
-                result = subextract.main()
+                result = sub_extract.main()
 
                 assert result == 1
 
@@ -244,13 +244,13 @@ class TestMainFunction:
         mkv_file = temp_dir / "custom.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subextract.need'):
-            with patch('subextract.SubtitleExtractProcessor') as mock_processor_class:
+        with patch('sub_extract.need'):
+            with patch('sub_extract.SubtitleExtractProcessor') as mock_processor_class:
                 mock_processor = mock_processor_class.return_value
                 mock_processor.process_files.return_value = (1, 0, 0)
 
                 # Pass custom argv without program name (main() expects just arguments)
-                result = subextract.main([str(mkv_file)])
+                result = sub_extract.main([str(mkv_file)])
 
                 mock_processor.process_files.assert_called_once()
                 assert result == 0

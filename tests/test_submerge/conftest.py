@@ -1,20 +1,18 @@
 """
-Submerge-specific pytest configuration and fixtures.
+Sub-merge-specific pytest configuration and fixtures.
 
 This module provides fixtures and configuration specific to testing
-the submerge.py subtitle merging tool.
+the sub-merge.py subtitle merging tool.
 """
 
 import pytest
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
-# Add project root to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from tests.conftest import import_tool
 
-# Import submerge for testing
-import submerge
+# Import sub-merge for testing
+sub_merge = import_tool("sub-merge")
 
 # Import shared fixtures
 from tests.shared.fixtures import (
@@ -35,8 +33,8 @@ def mock_subtitle_file_factory():
     def create_mock_subtitle_file(path: Path, language_code: str):
         """Create a mock SubtitleFile instance."""
         # Mock the from_path method to avoid file system calls
-        with patch.object(submerge.SubtitleFile, 'from_path') as mock_from_path:
-            mock_subtitle_file = submerge.SubtitleFile(
+        with patch.object(sub_merge.SubtitleFile, 'from_path') as mock_from_path:
+            mock_subtitle_file = sub_merge.SubtitleFile(
                 path=path,
                 language_code=language_code,
                 extension=path.suffix,
@@ -51,7 +49,7 @@ def mock_subtitle_file_factory():
 @pytest.fixture
 def mock_merge_video_with_subtitles():
     """Mock merge_video_with_subtitles function."""
-    with patch('submerge.merge_video_with_subtitles') as mock_merge:
+    with patch.object(sub_merge, 'merge_video_with_subtitles') as mock_merge:
         mock_merge.return_value = True
         yield mock_merge
 
@@ -59,14 +57,14 @@ def mock_merge_video_with_subtitles():
 @pytest.fixture
 def mock_process_videos():
     """Mock process_videos function."""
-    with patch('submerge.process_videos') as mock_process:
-        mock_process.return_value = submerge.ProcessingStats()
+    with patch.object(sub_merge, 'process_videos') as mock_process:
+        mock_process.return_value = sub_merge.ProcessingStats()
         yield mock_process
 
 
 @pytest.fixture
 def mock_collect_font_attachments():
     """Mock collect_font_attachments function."""
-    with patch('submerge.collect_font_attachments') as mock_collect:
+    with patch.object(sub_merge, 'collect_font_attachments') as mock_collect:
         mock_collect.return_value = []
         yield mock_collect

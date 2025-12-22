@@ -1,5 +1,5 @@
 """
-Core functionality tests for subattachextract.
+Core functionality tests for sub_attachment_extract.
 
 Tests attachment extraction from MKV files, MIME type categorization,
 filename sanitization, and batch processing with parallel execution.
@@ -10,7 +10,7 @@ import json
 import subprocess
 from unittest.mock import patch
 from pathlib import Path
-import subattachextract
+from tests.test_subattachextract.conftest import sub_attachment_extract
 
 
 class TestAttachment:
@@ -18,7 +18,7 @@ class TestAttachment:
 
     def test_attachment_creation_minimal(self):
         """Test creating Attachment with minimal required fields."""
-        attachment = subattachextract.Attachment(
+        attachment = sub_attachment_extract.Attachment(
             id=1,
             filename="font.ttf",
             mime_type="font/ttf"
@@ -31,7 +31,7 @@ class TestAttachment:
 
     def test_attachment_creation_with_size(self):
         """Test creating Attachment with all fields including size."""
-        attachment = subattachextract.Attachment(
+        attachment = sub_attachment_extract.Attachment(
             id=2,
             filename="cover.jpg",
             mime_type="image/jpeg",
@@ -45,9 +45,9 @@ class TestAttachment:
 
     def test_attachment_equality(self):
         """Test Attachment equality comparison."""
-        att1 = subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000)
-        att2 = subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000)
-        att3 = subattachextract.Attachment(2, "font.ttf", "font/ttf", 1000)
+        att1 = sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000)
+        att2 = sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000)
+        att3 = sub_attachment_extract.Attachment(2, "font.ttf", "font/ttf", 1000)
 
         assert att1 == att2
         assert att1 != att3
@@ -58,7 +58,7 @@ class TestExtractionStats:
 
     def test_stats_default_values(self):
         """Test ExtractionStats with default values."""
-        stats = subattachextract.ExtractionStats()
+        stats = sub_attachment_extract.ExtractionStats()
 
         assert stats.files_processed == 0
         assert stats.attachments_found == 0
@@ -68,7 +68,7 @@ class TestExtractionStats:
 
     def test_stats_custom_values(self):
         """Test ExtractionStats with custom values."""
-        stats = subattachextract.ExtractionStats(
+        stats = sub_attachment_extract.ExtractionStats(
             files_processed=5,
             attachments_found=15,
             attachments_extracted=10,
@@ -88,18 +88,18 @@ class TestAttachmentExtractor:
 
     def test_extractor_initialization_defaults(self):
         """Test AttachmentExtractor initialization with default parameters."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert extractor.dry_run is False
         assert extractor.verbose is True
         assert extractor.max_workers == 4
-        assert isinstance(extractor.stats, subattachextract.ExtractionStats)
+        assert isinstance(extractor.stats, sub_attachment_extract.ExtractionStats)
         assert isinstance(extractor.existing_files, set)
 
     def test_extractor_initialization_custom_params(self):
         """Test AttachmentExtractor initialization with custom parameters."""
-        custom_stats = subattachextract.ExtractionStats(files_processed=1)
-        extractor = subattachextract.AttachmentExtractor(
+        custom_stats = sub_attachment_extract.ExtractionStats(files_processed=1)
+        extractor = sub_attachment_extract.AttachmentExtractor(
             dry_run=True,
             verbose=False,
             max_workers=8,
@@ -114,7 +114,7 @@ class TestAttachmentExtractor:
 
     def test_log_verbose_mode(self):
         """Test log method in verbose mode."""
-        extractor = subattachextract.AttachmentExtractor(verbose=True)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=True)
 
         with patch('builtins.print') as mock_print:
             extractor.log("Test message")
@@ -122,7 +122,7 @@ class TestAttachmentExtractor:
 
     def test_log_quiet_mode(self):
         """Test log method in quiet mode."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
 
         with patch('builtins.print') as mock_print:
             extractor.log("Test message")
@@ -130,7 +130,7 @@ class TestAttachmentExtractor:
 
     def test_log_force_override(self):
         """Test log method with force=True override."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
 
         with patch('builtins.print') as mock_print:
             extractor.log("Test message", force=True)
@@ -138,7 +138,7 @@ class TestAttachmentExtractor:
 
     def test_check_dependencies_success(self):
         """Test successful dependency checking."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         with patch('subprocess.run') as mock_run:
             mock_run.return_value.returncode = 0
@@ -154,7 +154,7 @@ class TestAttachmentExtractor:
 
     def test_check_dependencies_tool_not_found(self):
         """Test dependency checking when tool is not found."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = FileNotFoundError()
@@ -169,7 +169,7 @@ class TestAttachmentExtractor:
 
     def test_check_dependencies_command_fails(self):
         """Test dependency checking when command returns non-zero exit."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'mkvmerge')
@@ -182,7 +182,7 @@ class TestAttachmentExtractor:
 
     def test_category_for_fonts(self):
         """Test MIME type categorization for fonts."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Test font MIME types
         assert extractor.category_for("font/ttf", "font.ttf") == "Fonts"
@@ -199,7 +199,7 @@ class TestAttachmentExtractor:
 
     def test_category_for_images(self):
         """Test MIME type categorization for images."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Test image MIME types
         assert extractor.category_for("image/jpeg", "cover.jpg") == "Covers"
@@ -219,7 +219,7 @@ class TestAttachmentExtractor:
 
     def test_category_for_others(self):
         """Test MIME type categorization for other files."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert extractor.category_for("application/octet-stream", "data.bin") == "Others"
         assert extractor.category_for("text/plain", "readme.txt") == "Others"
@@ -227,7 +227,7 @@ class TestAttachmentExtractor:
 
     def test_category_for_case_insensitive(self):
         """Test MIME type categorization is case insensitive."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert extractor.category_for("FONT/TTF", "FONT.TTF") == "Fonts"
         assert extractor.category_for("IMAGE/JPEG", "COVER.JPG") == "Covers"
@@ -235,14 +235,14 @@ class TestAttachmentExtractor:
 
     def test_sanitize_filename_basic(self):
         """Test basic filename sanitization."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert extractor.sanitize_filename("normal.ttf") == "normal.ttf"
         assert extractor.sanitize_filename("font with spaces.ttf") == "font with spaces.ttf"
 
     def test_sanitize_filename_problematic_chars(self):
         """Test filename sanitization with problematic characters."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Test character replacements (note: os.path.basename strips path components first)
         assert extractor.sanitize_filename("file/name.ttf") == "name.ttf"
@@ -267,7 +267,7 @@ class TestAttachmentExtractor:
 
     def test_sanitize_filename_long_name(self):
         """Test filename sanitization with long names."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Create a very long filename
         long_name = "a" * 300 + ".ttf"
@@ -279,7 +279,7 @@ class TestAttachmentExtractor:
 
     def test_sanitize_filename_path_components(self):
         """Test filename sanitization removes path components."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert extractor.sanitize_filename("path/to/font.ttf") == "font.ttf"
         assert extractor.sanitize_filename("/absolute/path/font.ttf") == "font.ttf"
@@ -293,7 +293,7 @@ class TestAttachmentExtractor:
 
     def test_build_existing_name_set(self, temp_dir):
         """Test building existing filename set from directories."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Create test directory structure
         covers_dir = temp_dir / "Covers"
@@ -324,7 +324,7 @@ class TestAttachmentExtractor:
 
     def test_build_existing_name_set_missing_dirs(self, temp_dir):
         """Test building existing name set when directories don't exist."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Don't create any directories
         extractor.build_existing_name_set(temp_dir)
@@ -334,7 +334,7 @@ class TestAttachmentExtractor:
 
     def test_remember_existing(self):
         """Test remembering existing filenames."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         assert "test.ttf" not in extractor.existing_files
         extractor.remember_existing("test.ttf")
@@ -342,7 +342,7 @@ class TestAttachmentExtractor:
 
     def test_get_mkv_attachments_success(self, temp_dir):
         """Test successful attachment identification from MKV."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
@@ -385,7 +385,7 @@ class TestAttachmentExtractor:
 
     def test_get_mkv_attachments_no_attachments(self, temp_dir):
         """Test attachment identification when no attachments present."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
@@ -403,7 +403,7 @@ class TestAttachmentExtractor:
 
     def test_get_mkv_attachments_missing_filename(self, temp_dir):
         """Test attachment identification with missing filename."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
@@ -429,7 +429,7 @@ class TestAttachmentExtractor:
 
     def test_get_mkv_attachments_subprocess_failure(self, temp_dir):
         """Test attachment identification when subprocess fails."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
@@ -445,7 +445,7 @@ class TestAttachmentExtractor:
 
     def test_get_mkv_attachments_json_error(self, temp_dir):
         """Test attachment identification with invalid JSON."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
@@ -462,10 +462,10 @@ class TestAttachmentExtractor:
 
     def test_extract_one_attachment_dry_run(self, temp_dir):
         """Test single attachment extraction in dry-run mode."""
-        extractor = subattachextract.AttachmentExtractor(dry_run=True)
+        extractor = sub_attachment_extract.AttachmentExtractor(dry_run=True)
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"mkv content")
-        attachment = subattachextract.Attachment(1, "font.ttf", "font/ttf")
+        attachment = sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf")
         dest_path = temp_dir / "font.ttf"
 
         result = extractor.extract_one_attachment(mkv_file, attachment, dest_path)
@@ -475,10 +475,10 @@ class TestAttachmentExtractor:
 
     def test_extract_one_attachment_success(self, temp_dir):
         """Test successful single attachment extraction."""
-        extractor = subattachextract.AttachmentExtractor(dry_run=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(dry_run=False)
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"mkv content")
-        attachment = subattachextract.Attachment(1, "font.ttf", "font/ttf")
+        attachment = sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf")
         dest_path = temp_dir / "font.ttf"
 
         with patch('subprocess.run') as mock_run:
@@ -502,10 +502,10 @@ class TestAttachmentExtractor:
 
     def test_extract_one_attachment_failure(self, temp_dir):
         """Test failed single attachment extraction."""
-        extractor = subattachextract.AttachmentExtractor(dry_run=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(dry_run=False)
         mkv_file = temp_dir / "test.mkv"
         mkv_file.write_bytes(b"mkv content")
-        attachment = subattachextract.Attachment(1, "font.ttf", "font/ttf")
+        attachment = sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf")
         dest_path = temp_dir / "font.ttf"
 
         with patch('subprocess.run') as mock_run:
@@ -518,7 +518,7 @@ class TestAttachmentExtractor:
 
     def test_find_mkv_files_single_file(self, temp_dir):
         """Test finding MKV files when path is a single file."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
@@ -529,7 +529,7 @@ class TestAttachmentExtractor:
 
     def test_find_mkv_files_non_mkv_file(self, temp_dir):
         """Test finding MKV files when path is non-MKV file."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         txt_file = temp_dir / "movie.txt"
         txt_file.write_text("not mkv")
 
@@ -539,7 +539,7 @@ class TestAttachmentExtractor:
 
     def test_find_mkv_files_directory(self, temp_dir):
         """Test finding MKV files in directory."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
 
         # Create test files
         (temp_dir / "movie1.mkv").write_bytes(b"mkv1")
@@ -556,7 +556,7 @@ class TestAttachmentExtractor:
 
     def test_find_mkv_files_nonexistent_path(self):
         """Test finding MKV files with non-existent path."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         nonexistent = Path("/nonexistent/path")
 
         files = extractor.find_mkv_files(nonexistent)
@@ -565,7 +565,7 @@ class TestAttachmentExtractor:
 
     def test_print_stats(self):
         """Test statistics printing."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         extractor.stats.files_processed = 5
         extractor.stats.attachments_found = 15
         extractor.stats.attachments_extracted = 10
@@ -587,7 +587,7 @@ class TestAttachmentExtractor:
 
     def test_print_stats_no_errors(self):
         """Test statistics printing when no errors."""
-        extractor = subattachextract.AttachmentExtractor()
+        extractor = sub_attachment_extract.AttachmentExtractor()
         extractor.stats.files_processed = 3
         extractor.stats.attachments_found = 6
         extractor.stats.attachments_extracted = 5

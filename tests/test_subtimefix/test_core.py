@@ -1,5 +1,5 @@
 """
-Core functionality tests for subtimefix.
+Core functionality tests for sub_time_fix.
 
 Tests the main timestamp shifting functions including time conversion,
 file processing, encoding detection, and file discovery.
@@ -7,7 +7,7 @@ file processing, encoding detection, and file discovery.
 
 import sys
 from unittest.mock import patch
-import subtimefix
+from tests.test_subtimefix.conftest import sub_time_fix
 
 
 class TestTimeConversion:
@@ -15,84 +15,84 @@ class TestTimeConversion:
 
     def test_ms_to_centiseconds_positive(self):
         """Test milliseconds to centiseconds conversion for positive values."""
-        assert subtimefix.ms_to_centiseconds(0) == 0
-        assert subtimefix.ms_to_centiseconds(5) == 1  # rounds up
-        assert subtimefix.ms_to_centiseconds(10) == 1
-        assert subtimefix.ms_to_centiseconds(15) == 2  # rounds up
-        assert subtimefix.ms_to_centiseconds(100) == 10
-        assert subtimefix.ms_to_centiseconds(995) == 100  # rounds up
-        assert subtimefix.ms_to_centiseconds(1000) == 100
-        assert subtimefix.ms_to_centiseconds(1500) == 150
-        assert subtimefix.ms_to_centiseconds(6032) == 603
+        assert sub_time_fix.ms_to_centiseconds(0) == 0
+        assert sub_time_fix.ms_to_centiseconds(5) == 1  # rounds up
+        assert sub_time_fix.ms_to_centiseconds(10) == 1
+        assert sub_time_fix.ms_to_centiseconds(15) == 2  # rounds up
+        assert sub_time_fix.ms_to_centiseconds(100) == 10
+        assert sub_time_fix.ms_to_centiseconds(995) == 100  # rounds up
+        assert sub_time_fix.ms_to_centiseconds(1000) == 100
+        assert sub_time_fix.ms_to_centiseconds(1500) == 150
+        assert sub_time_fix.ms_to_centiseconds(6032) == 603
 
     def test_ms_to_centiseconds_negative(self):
         """Test milliseconds to centiseconds conversion for negative values."""
-        assert subtimefix.ms_to_centiseconds(-1) == -1  # rounds down
-        assert subtimefix.ms_to_centiseconds(-5) == -1  # rounds down
-        assert subtimefix.ms_to_centiseconds(-10) == -2  # rounds down
-        assert subtimefix.ms_to_centiseconds(-15) == -2  # rounds down
-        assert subtimefix.ms_to_centiseconds(-100) == -11  # rounds down
-        assert subtimefix.ms_to_centiseconds(-995) == -100  # rounds down
-        assert subtimefix.ms_to_centiseconds(-1000) == -101  # rounds down
-        assert subtimefix.ms_to_centiseconds(-1500) == -151  # rounds down
-        assert subtimefix.ms_to_centiseconds(-6032) == -604
+        assert sub_time_fix.ms_to_centiseconds(-1) == -1  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-5) == -1  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-10) == -2  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-15) == -2  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-100) == -11  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-995) == -100  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-1000) == -101  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-1500) == -151  # rounds down
+        assert sub_time_fix.ms_to_centiseconds(-6032) == -604
 
     def test_time_to_centiseconds_valid(self):
         """Test parsing valid ASS time strings to centiseconds."""
-        assert subtimefix.time_to_centiseconds("0:00:00.00") == 0
-        assert subtimefix.time_to_centiseconds("0:00:01.00") == 100
-        assert subtimefix.time_to_centiseconds("0:01:00.00") == 6000
-        assert subtimefix.time_to_centiseconds("1:00:00.00") == 360000
-        assert subtimefix.time_to_centiseconds("1:23:45.67") == 502567
-        assert subtimefix.time_to_centiseconds("0:00:00.5") == 50  # single digit centiseconds
-        assert subtimefix.time_to_centiseconds("0:00:00.05") == 5
-        assert subtimefix.time_to_centiseconds(" 0:00:01.00 ") == 100  # whitespace handling
+        assert sub_time_fix.time_to_centiseconds("0:00:00.00") == 0
+        assert sub_time_fix.time_to_centiseconds("0:00:01.00") == 100
+        assert sub_time_fix.time_to_centiseconds("0:01:00.00") == 6000
+        assert sub_time_fix.time_to_centiseconds("1:00:00.00") == 360000
+        assert sub_time_fix.time_to_centiseconds("1:23:45.67") == 502567
+        assert sub_time_fix.time_to_centiseconds("0:00:00.5") == 50  # single digit centiseconds
+        assert sub_time_fix.time_to_centiseconds("0:00:00.05") == 5
+        assert sub_time_fix.time_to_centiseconds(" 0:00:01.00 ") == 100  # whitespace handling
 
     def test_time_to_centiseconds_invalid(self):
         """Test parsing invalid ASS time strings returns None."""
-        assert subtimefix.time_to_centiseconds("") is None
-        assert subtimefix.time_to_centiseconds("invalid") is None
-        assert subtimefix.time_to_centiseconds("0:00:01") is None  # missing centiseconds
-        assert subtimefix.time_to_centiseconds("0:00:01.000") is None  # too many centiseconds
+        assert sub_time_fix.time_to_centiseconds("") is None
+        assert sub_time_fix.time_to_centiseconds("invalid") is None
+        assert sub_time_fix.time_to_centiseconds("0:00:01") is None  # missing centiseconds
+        assert sub_time_fix.time_to_centiseconds("0:00:01.000") is None  # too many centiseconds
         # Note: The function actually accepts large hour values, so this isn't invalid
-        assert subtimefix.time_to_centiseconds("0:60:00.00") is None  # invalid seconds
-        assert subtimefix.time_to_centiseconds("0:00:00.abc") is None  # non-numeric centiseconds
+        assert sub_time_fix.time_to_centiseconds("0:60:00.00") is None  # invalid seconds
+        assert sub_time_fix.time_to_centiseconds("0:00:00.abc") is None  # non-numeric centiseconds
 
     def test_centiseconds_to_time_positive(self):
         """Test converting centiseconds to ASS time format for positive values."""
-        assert subtimefix.centiseconds_to_time(0) == "0:00:00.00"
-        assert subtimefix.centiseconds_to_time(1) == "0:00:00.01"
-        assert subtimefix.centiseconds_to_time(50) == "0:00:00.50"
-        assert subtimefix.centiseconds_to_time(100) == "0:00:01.00"
-        assert subtimefix.centiseconds_to_time(150) == "0:00:01.50"
-        assert subtimefix.centiseconds_to_time(6000) == "0:01:00.00"
-        assert subtimefix.centiseconds_to_time(360000) == "1:00:00.00"
-        assert subtimefix.centiseconds_to_time(502567) == "1:23:45.67"
+        assert sub_time_fix.centiseconds_to_time(0) == "0:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(1) == "0:00:00.01"
+        assert sub_time_fix.centiseconds_to_time(50) == "0:00:00.50"
+        assert sub_time_fix.centiseconds_to_time(100) == "0:00:01.00"
+        assert sub_time_fix.centiseconds_to_time(150) == "0:00:01.50"
+        assert sub_time_fix.centiseconds_to_time(6000) == "0:01:00.00"
+        assert sub_time_fix.centiseconds_to_time(360000) == "1:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(502567) == "1:23:45.67"
 
     def test_centiseconds_to_time_negative(self):
         """Test converting centiseconds to ASS time format clamps at zero."""
-        assert subtimefix.centiseconds_to_time(-1) == "0:00:00.00"
-        assert subtimefix.centiseconds_to_time(-100) == "0:00:00.00"
-        assert subtimefix.centiseconds_to_time(-1000) == "0:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(-1) == "0:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(-100) == "0:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(-1000) == "0:00:00.00"
 
     def test_centiseconds_to_time_roundtrip(self):
         """Test that centiseconds -> time -> centiseconds preserves value (positive only)."""
         original_cs = 123456
-        time_str = subtimefix.centiseconds_to_time(original_cs)
-        parsed_cs = subtimefix.time_to_centiseconds(time_str)
+        time_str = sub_time_fix.centiseconds_to_time(original_cs)
+        parsed_cs = sub_time_fix.time_to_centiseconds(time_str)
         assert parsed_cs == original_cs
 
     def test_time_conversion_edge_cases(self):
         """Test edge cases in time conversion."""
         # Large values - note that function shows 24:00:00 for 100 hours (doesn't wrap around)
         large_cs = 8640000  # 100 hours in centiseconds
-        assert subtimefix.centiseconds_to_time(large_cs) == "24:00:00.00"
+        assert sub_time_fix.centiseconds_to_time(large_cs) == "24:00:00.00"
 
         # Boundary values
-        assert subtimefix.ms_to_centiseconds(4) == 0  # rounds down to 0
-        assert subtimefix.ms_to_centiseconds(5) == 1  # rounds up to 1
-        assert subtimefix.ms_to_centiseconds(-4) == -1  # rounds down to -1
-        assert subtimefix.ms_to_centiseconds(-5) == -1  # rounds down to -1
+        assert sub_time_fix.ms_to_centiseconds(4) == 0  # rounds down to 0
+        assert sub_time_fix.ms_to_centiseconds(5) == 1  # rounds up to 1
+        assert sub_time_fix.ms_to_centiseconds(-4) == -1  # rounds down to -1
+        assert sub_time_fix.ms_to_centiseconds(-5) == -1  # rounds down to -1
 
 
 class TestEncodingDetection:
@@ -105,7 +105,7 @@ class TestEncodingDetection:
         content = "\ufeff[V4+ Styles]\nStyle: Default,Arial\n[Events]\nDialogue: Test"
         file_path.write_text(content, encoding='utf-8-sig')
 
-        detected = subtimefix.detect_encoding(str(file_path))
+        detected = sub_time_fix.detect_encoding(str(file_path))
         assert detected == "utf-8-sig"
 
     def test_detect_encoding_utf8(self, temp_dir):
@@ -114,7 +114,7 @@ class TestEncodingDetection:
         content = "[V4+ Styles]\nStyle: Default,Arial\n[Events]\nDialogue: Test"
         file_path.write_text(content, encoding='utf-8')
 
-        detected = subtimefix.detect_encoding(str(file_path))
+        detected = sub_time_fix.detect_encoding(str(file_path))
         # The function tries utf-8-sig first and it works, so it returns that
         assert detected == "utf-8-sig"
 
@@ -125,7 +125,7 @@ class TestEncodingDetection:
         # Write as bytes to simulate CP1252
         file_path.write_bytes(content.encode('cp1252'))
 
-        detected = subtimefix.detect_encoding(str(file_path))
+        detected = sub_time_fix.detect_encoding(str(file_path))
         # The function tries utf-8-sig first and it succeeds with valid ASCII content
         assert detected == "utf-8-sig"
 
@@ -135,7 +135,7 @@ class TestEncodingDetection:
         # Write some binary data that won't decode with common encodings
         file_path.write_bytes(b'\xff\xfe[V4+ Styles]\nStyle: Default,Arial')
 
-        detected = subtimefix.detect_encoding(str(file_path))
+        detected = sub_time_fix.detect_encoding(str(file_path))
         # Falls back through utf-8-sig, utf-8, cp1252, then latin-1
         assert detected in ["cp1252", "latin-1"]
 
@@ -144,7 +144,7 @@ class TestEncodingDetection:
         file_path = temp_dir / "test_empty.ass"
         file_path.write_text("")
 
-        detected = subtimefix.detect_encoding(str(file_path))
+        detected = sub_time_fix.detect_encoding(str(file_path))
         # Should work with empty file
         assert detected in ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
 
@@ -157,7 +157,7 @@ class TestFileDiscovery:
         ass_file = temp_dir / "subtitle.ass"
         ass_file.write_text("[Events]\nDialogue: Test")
 
-        files = subtimefix.gather_files(str(ass_file))
+        files = sub_time_fix.gather_files(str(ass_file))
         assert len(files) == 1
         assert files[0] == str(ass_file)
 
@@ -167,7 +167,7 @@ class TestFileDiscovery:
         txt_file.write_text("not an ass file")
 
         with patch('builtins.print') as mock_print:
-            files = subtimefix.gather_files(str(txt_file))
+            files = sub_time_fix.gather_files(str(txt_file))
             assert len(files) == 0
             mock_print.assert_called_with(f"[WARN] Skipping non-.ass file: {txt_file}")
 
@@ -187,7 +187,7 @@ class TestFileDiscovery:
         (subs_dir / "readme.txt").write_text("subtitle info")
         (subs_dir / "movie.mkv").write_text("movie content")
 
-        files = subtimefix.gather_files(str(subs_dir))
+        files = sub_time_fix.gather_files(str(subs_dir))
         assert len(files) == 3
         for expected_file in sorted(files_created):
             assert expected_file in files
@@ -211,7 +211,7 @@ class TestFileDiscovery:
                 ass_file.write_text(f"[Events]\nDialogue: Episode {i}{j+1}")
                 files_created.append(str(ass_file))
 
-        files = subtimefix.gather_files(str(base_dir))
+        files = sub_time_fix.gather_files(str(base_dir))
         assert len(files) == 4
         assert all(ass_file in files for ass_file in sorted(files_created))
 
@@ -220,7 +220,7 @@ class TestFileDiscovery:
         empty_dir = temp_dir / "empty"
         empty_dir.mkdir()
 
-        files = subtimefix.gather_files(str(empty_dir))
+        files = sub_time_fix.gather_files(str(empty_dir))
         assert len(files) == 0
 
     def test_gather_files_nonexistent_path(self, temp_dir):
@@ -228,7 +228,7 @@ class TestFileDiscovery:
         non_existent = temp_dir / "nonexistent"
 
         with patch('builtins.print') as mock_print:
-            files = subtimefix.gather_files(str(non_existent))
+            files = sub_time_fix.gather_files(str(non_existent))
             assert len(files) == 0
             mock_print.assert_called_with(f"[ERR] Path not found: {non_existent}", file=sys.stderr)
 
@@ -253,7 +253,7 @@ class TestFileDiscovery:
         (subs_dir / "subtitle.ssa").write_text("[Events]\nDialogue: SSA format")
         (subs_dir / "subtitle.as").write_text("not an ass file")
 
-        files = subtimefix.gather_files(str(subs_dir))
+        files = sub_time_fix.gather_files(str(subs_dir))
         assert len(files) == 1  # Only lowercase .ass is found
         assert all(ass_file in files for ass_file in sorted(files_created))
 
@@ -276,7 +276,7 @@ Dialogue: 0,0:00:03.50,0:00:04.75,Default,,0,0,0,,Test subtitle line 2
         ass_file.write_text(content)
 
         # Shift forward by 5000ms (500 centiseconds)
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 5000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 5000)
 
         assert lines_changed == 2
         assert timestamps_shifted == 4  # 2 timestamps per line
@@ -299,7 +299,7 @@ Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,Test subtitle line
         ass_file.write_text(content)
 
         # Shift backward by 3000ms (300 centiseconds)
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), -3000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), -3000)
 
         assert lines_changed == 1
         assert timestamps_shifted == 2
@@ -321,7 +321,7 @@ Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Test subtitle line
         ass_file.write_text(content)
 
         # Shift backward by more than the timestamp (negative result)
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), -200000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), -200000)
 
         assert lines_changed == 1
         assert timestamps_shifted == 2
@@ -342,7 +342,7 @@ Comment: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Comment subtitle
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 1000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 1000)
 
         assert lines_changed == 2  # Both dialogue and comment should be changed
         assert timestamps_shifted == 4  # 2 timestamps per line
@@ -369,7 +369,7 @@ Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Test subtitle
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 500)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 500)
 
         assert lines_changed == 1
         assert timestamps_shifted == 2
@@ -402,7 +402,7 @@ Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,Second events section
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 1000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 1000)
 
         assert lines_changed == 2  # One dialogue in each events section
         assert timestamps_shifted == 4  # 2 timestamps per dialogue
@@ -423,7 +423,7 @@ Dialogue: Default,0:00:01.00,0:00:02.00,Test subtitle,0,,0,0,0,
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 2000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 2000)
 
         assert lines_changed == 1
         assert timestamps_shifted == 2
@@ -444,7 +444,7 @@ Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,No format line
         ass_file.write_text(content)
 
         # Should leave unchanged when no Format: line is found
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 1000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 1000)
 
         assert lines_changed == 0
         assert timestamps_shifted == 0
@@ -467,7 +467,7 @@ Dialogue: 0,0:00:06.00,Default,,0,0,0,,Missing end field
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 1000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 1000)
 
         # Only the well-formed line should be changed
         assert lines_changed == 1
@@ -491,7 +491,7 @@ Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Test subtitle
 """
         ass_file.write_text(content)
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 0)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 0)
 
         assert lines_changed == 0
         assert timestamps_shifted == 0
@@ -515,7 +515,7 @@ Dialogue: 0,1:00:00.00,1:00:05.00,Default,,0,0,0,,Test subtitle (1 hour)
         ass_file.write_text(content)
 
         # Shift by 1 hour (3600000ms = 360000 centiseconds)
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 3600000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 3600000)
 
         assert lines_changed == 1
         assert timestamps_shifted == 2
@@ -530,14 +530,14 @@ Dialogue: 0,1:00:00.00,1:00:05.00,Default,,0,0,0,,Test subtitle (1 hour)
         content = "\ufeff[V4+ Styles]\nStyle: Default,Arial\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,Test"
         ass_file.write_text(content, encoding='utf-8-sig')
 
-        lines_changed, timestamps_shifted = subtimefix.process_file(str(ass_file), 1000)
+        lines_changed, timestamps_shifted = sub_time_fix.process_file(str(ass_file), 1000)
 
         # Zero shift should result in no changes
         assert lines_changed == 0
         assert timestamps_shifted == 0
 
         # File should still be UTF-8 with BOM
-        detected_encoding = subtimefix.detect_encoding(str(ass_file))
+        detected_encoding = sub_time_fix.detect_encoding(str(ass_file))
         assert detected_encoding == "utf-8-sig"
 
         # Content should be preserved (with BOM)

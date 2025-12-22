@@ -7,7 +7,7 @@ functionality of the ass_qafix quality assurance and auto-fixer tool.
 
 from pathlib import Path
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestCoreProcessing:

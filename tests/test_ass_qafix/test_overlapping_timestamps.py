@@ -7,7 +7,7 @@ between consecutive dialogue lines where the difference is less than 0.02 second
 
 from pathlib import Path
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestOverlappingTimestamps:

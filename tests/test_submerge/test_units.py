@@ -8,7 +8,7 @@ correct behavior of core utilities.
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, Mock
-import submerge
+from tests.test_submerge.conftest import sub_merge
 
 
 class TestSubtitleFile:
@@ -17,7 +17,7 @@ class TestSubtitleFile:
     def test_subtitle_file_creation(self):
         """Test SubtitleFile object creation."""
         path = Path("/test/video.eng.srt")
-        subtitle = submerge.SubtitleFile(
+        subtitle = sub_merge.SubtitleFile(
             path=path,
             language_code="eng",
             extension=".srt",
@@ -34,7 +34,7 @@ class TestSubtitleFile:
         subtitle_path = sample_video_file.parent / "video.eng.srt"
         subtitle_path.write_text("test subtitle")
 
-        subtitle = submerge.SubtitleFile.from_path(subtitle_path, "video")
+        subtitle = sub_merge.SubtitleFile.from_path(subtitle_path, "video")
 
         assert subtitle is not None
         assert subtitle.language_code == "eng"
@@ -46,7 +46,7 @@ class TestSubtitleFile:
         subtitle_path = temp_dir / "random.eng.srt"
         subtitle_path.write_text("test subtitle")
 
-        subtitle = submerge.SubtitleFile.from_path(subtitle_path, None)
+        subtitle = sub_merge.SubtitleFile.from_path(subtitle_path, None)
 
         # Should return None when no base name provided and doesn't match pattern
         assert subtitle is not None  # Falls back to general compound extension case
@@ -56,7 +56,7 @@ class TestSubtitleFile:
         subtitle_path = sample_video_file.parent / "video.se.srt"
         subtitle_path.write_text("test subtitle")
 
-        subtitle = submerge.SubtitleFile.from_path(subtitle_path, "video")
+        subtitle = sub_merge.SubtitleFile.from_path(subtitle_path, "video")
 
         assert subtitle is not None
         assert subtitle.language_code == "swe"  # Should be mapped to swe
@@ -64,7 +64,7 @@ class TestSubtitleFile:
     def test_from_path_invalid_extension(self):
         """Test SubtitleFile.from_path with invalid file extension."""
         video_path = Path("/test/video.mp4")
-        subtitle = submerge.SubtitleFile.from_path(video_path, "video")
+        subtitle = sub_merge.SubtitleFile.from_path(video_path, "video")
         assert subtitle is None
 
     def test_from_path_invalid_language_code(self, sample_video_file):
@@ -72,7 +72,7 @@ class TestSubtitleFile:
         subtitle_path = sample_video_file.parent / "video.xx.srt"  # 2-char invalid code
         subtitle_path.write_text("test subtitle")
 
-        subtitle = submerge.SubtitleFile.from_path(subtitle_path, "video")
+        subtitle = sub_merge.SubtitleFile.from_path(subtitle_path, "video")
 
         assert subtitle is not None  # Falls back to 2-letter code
         assert subtitle.language_code == "xx"
@@ -83,50 +83,50 @@ class TestLanguageDetection:
 
     def test_detect_language_code_swedish(self):
         """Test Swedish language code detection."""
-        assert submerge.detect_language_code("se") == "swe"
-        assert submerge.detect_language_code("sv") == "swe"
+        assert sub_merge.detect_language_code("se") == "swe"
+        assert sub_merge.detect_language_code("sv") == "swe"
 
     def test_detect_language_code_english(self):
         """Test English language code detection."""
-        assert submerge.detect_language_code("en") == "eng"
-        assert submerge.detect_language_code("eng") == "eng"
+        assert sub_merge.detect_language_code("en") == "eng"
+        assert sub_merge.detect_language_code("eng") == "eng"
 
     def test_detect_language_code_empty(self):
         """Test empty language code."""
-        assert submerge.detect_language_code("") == "und"
-        assert submerge.detect_language_code(None) == "und"
+        assert sub_merge.detect_language_code("") == "und"
+        assert sub_merge.detect_language_code(None) == "und"
 
     def test_detect_language_code_three_letter(self):
         """Test 3-letter language codes."""
-        assert submerge.detect_language_code("jpn") == "jpn"
-        assert submerge.detect_language_code("kor") == "kor"
+        assert sub_merge.detect_language_code("jpn") == "jpn"
+        assert sub_merge.detect_language_code("kor") == "kor"
 
     def test_detect_language_code_ietf_tag(self):
         """Test IETF language tags."""
-        assert submerge.detect_language_code("zh-Hans") == "zh-Hans"
-        assert submerge.detect_language_code("pt-BR") == "pt-BR"
+        assert sub_merge.detect_language_code("zh-Hans") == "zh-Hans"
+        assert sub_merge.detect_language_code("pt-BR") == "pt-BR"
 
     def test_detect_language_code_unrecognized_2letter(self):
         """Test unrecognized 2-letter codes."""
-        result = submerge.detect_language_code("xx")
+        result = sub_merge.detect_language_code("xx")
         assert result == "xx"  # Falls back to lowercase 2-letter code
 
     def test_get_language_name_english(self):
         """Test getting language name for English."""
-        assert submerge.get_language_name("eng") == "English"
+        assert sub_merge.get_language_name("eng") == "English"
 
     def test_get_language_name_swedish(self):
         """Test getting language name for Swedish."""
-        assert submerge.get_language_name("swe") == "Swedish"
+        assert sub_merge.get_language_name("swe") == "Swedish"
 
     def test_get_language_name_unknown(self):
         """Test getting language name for unknown code."""
-        assert submerge.get_language_name("und") == "Unknown"
-        assert submerge.get_language_name("invalid") == "Invalid"
+        assert sub_merge.get_language_name("und") == "Unknown"
+        assert sub_merge.get_language_name("invalid") == "Invalid"
 
     def test_get_language_name_ietf_tag(self):
         """Test getting language name for IETF tag."""
-        assert submerge.get_language_name("zh-Hans") == "Chinese (Simplified)"
+        assert sub_merge.get_language_name("zh-Hans") == "Chinese (Simplified)"
 
 
 class TestEncodingDetection:
@@ -135,19 +135,19 @@ class TestEncodingDetection:
     def test_detect_subtitle_encoding_utf8(self, mock_encoding_utf8):
         """Test UTF-8 encoding detection."""
         subtitle_path = Path("/test/subtitle.srt")
-        encoding = submerge.detect_subtitle_encoding(subtitle_path)
+        encoding = sub_merge.detect_subtitle_encoding(subtitle_path)
         assert encoding == "UTF-8"
 
     def test_detect_subtitle_encoding_iso8859(self, mock_encoding_iso8859):
         """Test ISO-8859-1 encoding detection."""
         subtitle_path = Path("/test/subtitle.srt")
-        encoding = submerge.detect_subtitle_encoding(subtitle_path)
+        encoding = sub_merge.detect_subtitle_encoding(subtitle_path)
         assert encoding == "ISO-8859-1"
 
     def test_detect_subtitle_encoding_unknown(self, mock_encoding_unknown):
         """Test unknown encoding detection."""
         subtitle_path = Path("/test/subtitle.srt")
-        encoding = submerge.detect_subtitle_encoding(subtitle_path)
+        encoding = sub_merge.detect_subtitle_encoding(subtitle_path)
         assert encoding == "ISO-8859-1"  # unknown-8bit maps to ISO-8859-1
 
     def test_detect_subtitle_encoding_failure(self):
@@ -155,7 +155,7 @@ class TestEncodingDetection:
         subtitle_path = Path("/test/subtitle.srt")
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'file')
-            encoding = submerge.detect_subtitle_encoding(subtitle_path)
+            encoding = sub_merge.detect_subtitle_encoding(subtitle_path)
             assert encoding == "UTF-8"  # Falls back to UTF-8 on failure
 
 
@@ -168,7 +168,7 @@ class TestFontHandling:
         existing_fonts = ["existing_font.ttf"]
 
         # Replace mode should always attach
-        assert submerge.should_attach_font(font_path, existing_fonts, "replace") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "replace") is True
 
     def test_should_attach_font_append_mode_new_font(self):
         """Test font attachment in append mode with new font."""
@@ -176,7 +176,7 @@ class TestFontHandling:
         existing_fonts = ["existing_font.ttf"]
 
         # Append mode should attach if not duplicate
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is True
 
     def test_should_attach_font_append_mode_duplicate(self):
         """Test font attachment in append mode with duplicate font."""
@@ -184,7 +184,7 @@ class TestFontHandling:
         existing_fonts = ["Arial.ttf"]
 
         # Append mode should not attach duplicates
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is False
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is False
 
     def test_should_attach_font_append_mode_similar_name(self):
         """Test font attachment in append mode with similar but not identical base names."""
@@ -193,7 +193,7 @@ class TestFontHandling:
 
         # Append mode should attach fonts with similar but not identical base names
         # (current implementation only checks exact base name matches)
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is True
 
     @patch('subprocess.run')
     def test_get_existing_font_attachments_success(self, mock_run):
@@ -204,7 +204,7 @@ class TestFontHandling:
         )
 
         video_path = Path("/test/video.mkv")
-        fonts = submerge.get_existing_font_attachments(video_path)
+        fonts = sub_merge.get_existing_font_attachments(video_path)
 
         assert fonts == ["Arial.ttf"]
         mock_run.assert_called_once_with(
@@ -224,7 +224,7 @@ class TestFontHandling:
         )
 
         video_path = Path("/test/video.mkv")
-        fonts = submerge.get_existing_font_attachments(video_path)
+        fonts = sub_merge.get_existing_font_attachments(video_path)
 
         assert fonts == []
 
@@ -234,7 +234,7 @@ class TestFontHandling:
         mock_run.side_effect = subprocess.CalledProcessError(1, 'mkvmerge')
 
         video_path = Path("/test/video.mkv")
-        fonts = submerge.get_existing_font_attachments(video_path)
+        fonts = sub_merge.get_existing_font_attachments(video_path)
 
         assert fonts == []
 
@@ -245,24 +245,24 @@ class TestUtilityFunctions:
         """Test video file detection with supported extensions."""
         video_path = temp_dir / "video.mkv"
         video_path.write_text("dummy video content")
-        assert submerge.is_video_file(video_path) is True
+        assert sub_merge.is_video_file(video_path) is True
 
         mp4_path = temp_dir / "video.mp4"
         mp4_path.write_text("dummy video content")
-        assert submerge.is_video_file(mp4_path) is True
+        assert sub_merge.is_video_file(mp4_path) is True
 
         mkv_path = temp_dir / "video.MKV"
         mkv_path.write_text("dummy video content")
-        assert submerge.is_video_file(mkv_path) is True
+        assert sub_merge.is_video_file(mkv_path) is True
 
     def test_is_video_file_unsupported_extensions(self):
         """Test video file detection with unsupported extensions."""
-        assert submerge.is_video_file(Path("/test/video.txt")) is False
-        assert submerge.is_video_file(Path("/test/video.avi")) is False
+        assert sub_merge.is_video_file(Path("/test/video.txt")) is False
+        assert sub_merge.is_video_file(Path("/test/video.avi")) is False
 
     def test_is_video_file_nonexistent(self):
         """Test video file detection with non-existent file."""
-        assert submerge.is_video_file(Path("/nonexistent/video.mkv")) is False
+        assert sub_merge.is_video_file(Path("/nonexistent/video.mkv")) is False
 
     @patch('subprocess.run')
     def test_get_mime_type_success(self, mock_run):
@@ -273,7 +273,7 @@ class TestUtilityFunctions:
         )
 
         file_path = Path("/test/file.txt")
-        mime_type = submerge.get_mime_type(file_path)
+        mime_type = sub_merge.get_mime_type(file_path)
 
         assert mime_type == "text/plain"
 
@@ -283,15 +283,15 @@ class TestUtilityFunctions:
         mock_run.side_effect = subprocess.CalledProcessError(1, 'file')
 
         file_path = Path("/test/file.txt")
-        mime_type = submerge.get_mime_type(file_path)
+        mime_type = sub_merge.get_mime_type(file_path)
 
         assert mime_type == "application/octet-stream"
 
     def test_normalize_language_code(self):
         """Test language code normalization."""
-        assert submerge.normalize_language_code("eng") == "eng"
-        assert submerge.normalize_language_code(" zh-Hans ") == "zh-Hans"
-        assert submerge.normalize_language_code("PT-BR") == "PT-BR"
+        assert sub_merge.normalize_language_code("eng") == "eng"
+        assert sub_merge.normalize_language_code(" zh-Hans ") == "zh-Hans"
+        assert sub_merge.normalize_language_code("PT-BR") == "PT-BR"
 
 
 class TestProcessingStats:
@@ -299,7 +299,7 @@ class TestProcessingStats:
 
     def test_processing_stats_creation(self):
         """Test ProcessingStats object creation."""
-        stats = submerge.ProcessingStats()
+        stats = sub_merge.ProcessingStats()
         assert stats.total_videos == 0
         assert stats.processed_videos == 0
         assert stats.skipped_videos == 0
@@ -309,7 +309,7 @@ class TestProcessingStats:
 
     def test_processing_stats_string_representation(self):
         """Test ProcessingStats string representation."""
-        stats = submerge.ProcessingStats(
+        stats = sub_merge.ProcessingStats(
             total_videos=5,
             processed_videos=3,
             skipped_videos=1,
@@ -328,7 +328,7 @@ class TestProcessingStats:
 
     def test_processing_stats_default_values(self):
         """Test ProcessingStats with default values."""
-        stats = submerge.ProcessingStats()
+        stats = sub_merge.ProcessingStats()
 
         # Should not raise any errors
         str(stats)

@@ -7,7 +7,7 @@ font handling, and mkvmerge command generation.
 
 import subprocess
 from unittest.mock import patch, Mock
-import submerge
+from tests.test_submerge.conftest import sub_merge
 
 
 class TestMergeVideoWithSubtitles:
@@ -19,24 +19,24 @@ class TestMergeVideoWithSubtitles:
         video_path.write_text("dummy video content")
 
         subtitle_files = [
-            submerge.SubtitleFile.from_path(sample_srt_file, "test"),
-            submerge.SubtitleFile.from_path(sample_ass_file, "test")
+            sub_merge.SubtitleFile.from_path(sample_srt_file, "test"),
+            sub_merge.SubtitleFile.from_path(sample_ass_file, "test")
         ]
 
         # Mock font detection to return our test font
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
+        with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = []
 
             # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-            with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+            with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
                 mock_encoding.return_value = "UTF-8"
 
                 # Capture the logging to extract the command in dry_run mode
                 with patch('logging.info') as mock_log:
-                    result = submerge.merge_video_with_subtitles(
+                    result = sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
-                        font_attachments=[submerge.FontAttachment(
+                        font_attachments=[sub_merge.FontAttachment(
                             path=fonts_dir / "Arial.ttf",
                             mime_type="application/x-truetype-font"
                         )],
@@ -59,15 +59,15 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock encoding detection
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],  # No external fonts
@@ -89,19 +89,19 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock existing fonts detection
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
+        with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["ExistingFont.ttf"]
 
             with patch('subprocess.run') as mock_run:
                 mock_run.return_value = Mock(returncode=0)
 
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
-                    font_attachments=[submerge.FontAttachment(
+                    font_attachments=[sub_merge.FontAttachment(
                         path=fonts_dir / "Arial.ttf",
                         mime_type="application/x-truetype-font"
                     )],
@@ -121,7 +121,7 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        result = submerge.merge_video_with_subtitles(
+        result = sub_merge.merge_video_with_subtitles(
             video_path=video_path,
             subtitle_files=[],
             font_attachments=[],
@@ -137,15 +137,15 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock encoding detection to return ISO-8859-1
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "ISO-8859-1"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -167,12 +167,12 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0)
 
-            result = submerge.merge_video_with_subtitles(
+            result = sub_merge.merge_video_with_subtitles(
                 video_path=video_path,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -192,31 +192,31 @@ class TestMergeVideoWithSubtitles:
         video_path.write_text("dummy video content")
 
         subtitle_files = [
-            submerge.SubtitleFile.from_path(
+            sub_merge.SubtitleFile.from_path(
                 complex_subtitle_setup['subtitles']['eng.srt'], "complex_video"
             ),
-            submerge.SubtitleFile.from_path(
+            sub_merge.SubtitleFile.from_path(
                 complex_subtitle_setup['subtitles']['fr.srt'], "complex_video"
             ),
-            submerge.SubtitleFile.from_path(
+            sub_merge.SubtitleFile.from_path(
                 complex_subtitle_setup['subtitles']['se.srt'], "complex_video"
             ),
         ]
 
         font_attachments = [
-            submerge.FontAttachment(
+            sub_merge.FontAttachment(
                 path=complex_subtitle_setup['fonts_dir'] / "Arial.ttf",
                 mime_type="application/x-truetype-font"
             )
         ]
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
@@ -249,12 +249,12 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(
+        subtitle_files = [sub_merge.SubtitleFile.from_path(
             temp_dir / "test.eng.srt", "test"
         )]
         (temp_dir / "test.eng.srt").write_text("test subtitle")
 
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             with patch('subprocess.run') as mock_run:
@@ -263,7 +263,7 @@ class TestMergeVideoWithSubtitles:
                     stderr="mkvmerge error: something went wrong"
                 )
 
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -279,18 +279,18 @@ class TestMergeVideoWithSubtitles:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(
+        subtitle_files = [sub_merge.SubtitleFile.from_path(
             temp_dir / "test.eng.srt", "test"
         )]
         (temp_dir / "test.eng.srt").write_text("test subtitle")
 
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             with patch('subprocess.run') as mock_run:
                 mock_run.side_effect = subprocess.TimeoutExpired('mkvmerge', 300)
 
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -307,12 +307,12 @@ class TestProcessSingleVideo:
 
     def test_process_single_video_success(self, temp_dir, sample_video_file, sample_srt_file, mock_subprocess_success):
         """Test successful single video processing."""
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
-        with patch('submerge.merge_video_with_subtitles') as mock_merge:
+        with patch('sub_merge.merge_video_with_subtitles') as mock_merge:
             mock_merge.return_value = True
 
-            success, message = submerge.process_single_video(
+            success, message = sub_merge.process_single_video(
                 video_path=sample_video_file,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -327,7 +327,7 @@ class TestProcessSingleVideo:
 
     def test_process_single_video_no_subtitles(self, sample_video_file):
         """Test processing when no subtitle files are found."""
-        success, message = submerge.process_single_video(
+        success, message = sub_merge.process_single_video(
             video_path=sample_video_file,
             subtitle_files=[],
             font_attachments=[],
@@ -341,12 +341,12 @@ class TestProcessSingleVideo:
 
     def test_process_single_video_merge_failure(self, temp_dir, sample_video_file, sample_srt_file, mock_subprocess_failure):
         """Test processing when merge fails."""
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
-        with patch('submerge.merge_video_with_subtitles') as mock_merge:
+        with patch('sub_merge.merge_video_with_subtitles') as mock_merge:
             mock_merge.return_value = False
 
-            success, message = submerge.process_single_video(
+            success, message = sub_merge.process_single_video(
                 video_path=sample_video_file,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -378,15 +378,15 @@ class TestProcessVideos:
 
         video_files = [video1, video2]
 
-        with patch('submerge.find_subtitle_files') as mock_find:
-            with patch('submerge.process_single_video') as mock_process:
+        with patch('sub_merge.find_subtitle_files') as mock_find:
+            with patch('sub_merge.process_single_video') as mock_process:
                 mock_find.side_effect = [
-                    [submerge.SubtitleFile.from_path(srt1, "video1")],
-                    [submerge.SubtitleFile.from_path(srt2, "video2")]
+                    [sub_merge.SubtitleFile.from_path(srt1, "video1")],
+                    [sub_merge.SubtitleFile.from_path(srt2, "video2")]
                 ]
                 mock_process.return_value = (True, "Success")
 
-                stats = submerge.process_videos(
+                stats = sub_merge.process_videos(
                     video_files=video_files,
                     font_attachments=[],
                     max_workers=1,
@@ -408,10 +408,10 @@ class TestProcessVideos:
             video.write_text(f"dummy video {i}")
             video_files.append(video)
 
-        with patch('submerge.find_subtitle_files') as mock_find:
-            with patch('submerge.process_single_video') as mock_process:
+        with patch('sub_merge.find_subtitle_files') as mock_find:
+            with patch('sub_merge.process_single_video') as mock_process:
                 # Create mock subtitle file so videos aren't skipped
-                mock_subtitle = submerge.SubtitleFile(
+                mock_subtitle = sub_merge.SubtitleFile(
                     path=temp_dir / "subtitle.eng.srt",
                     language_code="eng",
                     extension=".srt",
@@ -420,7 +420,7 @@ class TestProcessVideos:
                 mock_find.return_value = [mock_subtitle]
                 mock_process.return_value = (True, "Success")
 
-                stats = submerge.process_videos(
+                stats = sub_merge.process_videos(
                     video_files=video_files,
                     font_attachments=[],
                     max_workers=3,
@@ -433,7 +433,7 @@ class TestProcessVideos:
 
     def test_process_videos_empty_list(self):
         """Test processing with no video files."""
-        stats = submerge.process_videos(
+        stats = sub_merge.process_videos(
             video_files=[],
             font_attachments=[],
             max_workers=1,
@@ -455,10 +455,10 @@ class TestProcessVideos:
 
         video_files = [video1, video2]
 
-        with patch('submerge.find_subtitle_files') as mock_find:
+        with patch('sub_merge.find_subtitle_files') as mock_find:
             mock_find.return_value = []  # No subtitles found for any video
 
-            stats = submerge.process_videos(
+            stats = sub_merge.process_videos(
                 video_files=video_files,
                 font_attachments=[],
                 max_workers=1,
@@ -480,16 +480,16 @@ class TestProcessVideos:
 
         video_files = [video1, video2]
 
-        with patch('submerge.find_subtitle_files') as mock_find:
-            with patch('submerge.process_single_video') as mock_process:
+        with patch('sub_merge.find_subtitle_files') as mock_find:
+            with patch('sub_merge.process_single_video') as mock_process:
                 # Create mock subtitle files for both videos
-                mock_subtitle1 = submerge.SubtitleFile(
+                mock_subtitle1 = sub_merge.SubtitleFile(
                     path=temp_dir / "video1.eng.srt",
                     language_code="eng",
                     extension=".srt",
                     priority=1
                 )
-                submerge.SubtitleFile(
+                sub_merge.SubtitleFile(
                     path=temp_dir / "video2.eng.srt",
                     language_code="eng",
                     extension=".srt",
@@ -498,7 +498,7 @@ class TestProcessVideos:
                 mock_find.return_value = [mock_subtitle1]  # Same return for both videos
                 mock_process.side_effect = [(True, "Success"), (False, "Failed")]
 
-                stats = submerge.process_videos(
+                stats = sub_merge.process_videos(
                     video_files=video_files,
                     font_attachments=[],
                     max_workers=1,

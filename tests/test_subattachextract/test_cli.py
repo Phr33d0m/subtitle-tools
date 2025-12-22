@@ -8,7 +8,7 @@ dry-run mode, verbose/quiet options, and parallel processing.
 import pytest
 from unittest.mock import patch, Mock
 from pathlib import Path
-import subattachextract
+from tests.test_subattachextract.conftest import sub_attachment_extract
 
 
 class TestArgumentParsing:
@@ -19,17 +19,17 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
 
             # Create a proper stats object instead of Mock
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify default arguments were used
                     mock_extractor_class.assert_called_once_with(
@@ -43,15 +43,15 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify dry-run argument was parsed
                     mock_extractor_class.assert_called_once_with(
@@ -65,15 +65,15 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--quiet', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify quiet argument was parsed (verbose=False)
                     mock_extractor_class.assert_called_once_with(
@@ -87,15 +87,15 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--parallel', '8', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify parallel argument was parsed
                     mock_extractor_class.assert_called_once_with(
@@ -109,15 +109,15 @@ class TestArgumentParsing:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', '--quiet', '--parallel', '6', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify all arguments were parsed correctly
                     mock_extractor_class.assert_called_once_with(
@@ -130,7 +130,7 @@ class TestArgumentParsing:
         """Test help message display."""
         with patch('sys.argv', ['subattachextract', '--help']):
             with pytest.raises(SystemExit):
-                subattachextract.main()
+                sub_attachment_extract.main()
 
 
 class TestMainFunction:
@@ -141,16 +141,16 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"fake mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
                 with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 1.5]):  # Mock timing
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Verify extractor was created with correct parameters
                         mock_extractor_class.assert_called_once_with(
@@ -176,7 +176,7 @@ class TestMainFunction:
             mkv_file = temp_dir / f"movie{i}.mkv"
             mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [
@@ -184,12 +184,12 @@ class TestMainFunction:
                 temp_dir / "movie1.mkv",
                 temp_dir / "movie2.mkv"
             ]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=3)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=3)
 
             with patch('sys.argv', ['subattachextract', str(temp_dir)]):
                 with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 2.0]):
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Verify correct output directory was used
                         process_files_call = mock_extractor.process_files.call_args[0]
@@ -200,15 +200,15 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify extractor was created with dry_run=True
                     mock_extractor_class.assert_called_once_with(
@@ -227,16 +227,16 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--quiet', str(mkv_file)]):
                 with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 1.0]):
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Verify extractor was created with verbose=False
                         mock_extractor_class.assert_called_once_with(
@@ -250,15 +250,15 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--parallel', '8', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Verify extractor was created with custom worker count
                     mock_extractor_class.assert_called_once_with(
@@ -269,15 +269,15 @@ class TestMainFunction:
 
     def test_main_no_mkv_files_found(self, temp_dir):
         """Test main function when no MKV files are found."""
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = []
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=0)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=0)
 
             with patch('sys.argv', ['subattachextract', str(temp_dir)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Should always log "Done." at the end
                     mock_extractor.log.assert_any_call("Done.", force=True)
@@ -300,15 +300,15 @@ class TestMainFunction:
             mkv_file = Path("test.mkv")
             mkv_file.write_bytes(b"mkv content")
 
-            with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+            with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
                 mock_extractor = Mock()
                 mock_extractor_class.return_value = mock_extractor
                 mock_extractor.find_mkv_files.return_value = [mkv_file]
-                mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+                mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
                 with patch('sys.argv', ['subattachextract']):
                     with patch('builtins.print'):
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Should find files in current directory
                         mock_extractor.find_mkv_files.assert_called_once_with(Path('.'))
@@ -321,17 +321,17 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=2)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=2)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
                 with patch('builtins.print'):
                     # Mock timing: start=0, end=3.5 seconds
                     with patch('time.time', side_effect=[0, 3.5]):
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Should display completion time
                         mock_extractor.log.assert_any_call(
@@ -343,14 +343,14 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.check_dependencies.side_effect = SystemExit(1)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
                 with pytest.raises(SystemExit) as exc_info:
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                 assert exc_info.value.code == 1
 
@@ -359,7 +359,7 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
@@ -370,11 +370,11 @@ class TestMainFunction:
                 mock_extractor.stats.errors += 1
 
             mock_extractor.process_files.side_effect = mock_process_files_with_error
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=0)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=0)
 
             with patch('sys.argv', ['subattachextract', str(mkv_file)]):
                 with patch('builtins.print'):
-                    subattachextract.main()
+                    sub_attachment_extract.main()
 
                     # Should still print stats even after error
                     mock_extractor.print_stats.assert_called_once()
@@ -384,16 +384,16 @@ class TestMainFunction:
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
 
-        with patch('subattachextract.AttachmentExtractor') as mock_extractor_class:
+        with patch('sub_attachment_extract.AttachmentExtractor') as mock_extractor_class:
             mock_extractor = Mock()
             mock_extractor_class.return_value = mock_extractor
             mock_extractor.find_mkv_files.return_value = [mkv_file]
-            mock_extractor.stats = subattachextract.ExtractionStats(files_processed=1)
+            mock_extractor.stats = sub_attachment_extract.ExtractionStats(files_processed=1)
 
             with patch('sys.argv', ['subattachextract', '--dry-run', '--quiet', '--parallel', '6', str(mkv_file)]):
                 with patch('builtins.print'):
                     with patch('time.time', side_effect=[0, 0.5]):
-                        subattachextract.main()
+                        sub_attachment_extract.main()
 
                         # Verify all flags were passed correctly
                         mock_extractor_class.assert_called_once_with(

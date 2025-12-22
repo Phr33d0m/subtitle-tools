@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import patch
 import sys
 from pathlib import Path
-import subtimefix
+from tests.test_subtimefix.conftest import sub_time_fix
 
 
 class TestArgumentParsing:
@@ -18,7 +18,7 @@ class TestArgumentParsing:
     def test_parse_args_with_time_shift(self):
         """Test argument parsing with required time shift."""
         with patch('sys.argv', ['subtimefix', '--time', '5000']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 5000
             assert args.path == '.'  # default value
@@ -26,7 +26,7 @@ class TestArgumentParsing:
     def test_parse_args_short_time_flag(self):
         """Test argument parsing with short time flag."""
         with patch('sys.argv', ['subtimefix', '-t', '-2000']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == -2000
             assert args.path == '.'
@@ -34,7 +34,7 @@ class TestArgumentParsing:
     def test_parse_args_negative_time_shift(self):
         """Test argument parsing with negative time shift."""
         with patch('sys.argv', ['subtimefix', '--time', '-3000']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == -3000
             assert args.path == '.'
@@ -42,7 +42,7 @@ class TestArgumentParsing:
     def test_parse_args_positive_time_shift(self):
         """Test argument parsing with positive time shift."""
         with patch('sys.argv', ['subtimefix', '--time', '6000']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 6000
             assert args.path == '.'
@@ -50,7 +50,7 @@ class TestArgumentParsing:
     def test_parse_args_directory_path(self):
         """Test argument parsing with directory path."""
         with patch('sys.argv', ['subtimefix', '--time', '1000', '/path/to/subtitles']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 1000
             assert args.path == '/path/to/subtitles'
@@ -58,7 +58,7 @@ class TestArgumentParsing:
     def test_parse_args_file_path(self):
         """Test argument parsing with specific file path."""
         with patch('sys.argv', ['subtimefix', '--time', '1500', 'subtitle.ass']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 1500
             assert args.path == 'subtitle.ass'
@@ -66,7 +66,7 @@ class TestArgumentParsing:
     def test_parse_args_zero_time_shift(self):
         """Test argument parsing with zero time shift."""
         with patch('sys.argv', ['subtimefix', '--time', '0']):
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 0
             assert args.path == '.'
@@ -74,7 +74,7 @@ class TestArgumentParsing:
     def test_parse_args_large_time_shift(self):
         """Test argument parsing with large time shift."""
         with patch('sys.argv', ['subtimefix', '--time', '3600000']):  # 1 hour
-            args = subtimefix.parse_args()
+            args = sub_time_fix.parse_args()
 
             assert args.time == 3600000
             assert args.path == '.'
@@ -83,13 +83,13 @@ class TestArgumentParsing:
         """Test argument parsing when required time is missing."""
         with patch('sys.argv', ['subtimefix']):
             with pytest.raises(SystemExit):
-                subtimefix.parse_args()
+                sub_time_fix.parse_args()
 
     def test_parse_args_help(self):
         """Test help message display."""
         with patch('sys.argv', ['subtimefix', '--help']):
             with pytest.raises(SystemExit):
-                subtimefix.parse_args()
+                sub_time_fix.parse_args()
 
 
 class TestMainFunction:
@@ -109,12 +109,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
 """
         ass_file.write_text(ass_content)
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             mock_process.return_value = (2, 4)  # 2 lines changed, 4 timestamps updated
 
             with patch('sys.argv', ['subtimefix', '--time', '5000', str(ass_file)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Verify success message was printed
                     mock_print.assert_any_call(f"[OK] {ass_file}: lines changed=2, timestamps updated=4")
@@ -133,12 +133,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
             ass_file = subs_dir / f"subtitle{i}.ass"
             ass_file.write_text(f"[Events]\nDialogue: 0,0:00:0{i}.00,0:00:0{i+1}.00,Default,,Test")
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             mock_process.return_value = (1, 2)  # 1 line changed, 2 timestamps updated per file
 
             with patch('sys.argv', ['subtimefix', '--time', '2000', str(subs_dir)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should process all 3 files
                     assert mock_process.call_count == 3
@@ -153,12 +153,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         ass_file = temp_dir / "subtitle.ass"
         ass_file.write_text("[Events]\nDialogue: 0,0:00:05.00,0:00:06.00,Default,,Test")
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             mock_process.return_value = (1, 2)
 
             with patch('sys.argv', ['subtimefix', '--time', '-1000', str(ass_file)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should report backward shift
                     mock_print.assert_any_call(
@@ -171,12 +171,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         ass_file = temp_dir / "subtitle.ass"
         ass_file.write_text("[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,Test")
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             mock_process.return_value = (0, 0)  # No changes for zero shift
 
             with patch('sys.argv', ['subtimefix', '--time', '0', str(ass_file)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should report forward shift (even for zero)
                     mock_print.assert_any_call(
@@ -192,7 +192,7 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         with patch('sys.argv', ['subtimefix', '--time', '1000', str(empty_dir)]):
             with patch('sys.exit') as mock_exit:
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     mock_print.assert_any_call(
                         "No .ass files found in the current directory.",
@@ -205,12 +205,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         ass_file = temp_dir / "subtitle.ass"
         ass_file.write_text("test content")
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             mock_process.side_effect = Exception("Processing failed")
 
             with patch('sys.argv', ['subtimefix', '--time', '1000', str(ass_file)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should print error message
                     mock_print.assert_any_call(
@@ -226,7 +226,7 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         with patch('sys.argv', ['subtimefix', '--time', '1000', str(txt_file)]):
             with patch('sys.exit') as mock_exit:
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should warn about non-ASS file
                     mock_print.assert_any_call(f"[WARN] Skipping non-.ass file: {txt_file}")
@@ -239,7 +239,7 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         with patch('sys.argv', ['subtimefix', '--time', '1000', str(non_existent)]):
             with patch('sys.exit') as mock_exit:
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should print error about missing path
                     mock_print.assert_any_call(
@@ -258,13 +258,13 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
         good_file.write_text("[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,Good")
         bad_file.write_text("bad content")
 
-        with patch('subtimefix.process_file') as mock_process:
+        with patch('sub_time_fix.process_file') as mock_process:
             # First call succeeds, second fails
             mock_process.side_effect = [(1, 2), Exception("Bad file")]
 
             with patch('sys.argv', ['subtimefix', '--time', '1000', str(subs_dir)]):
                 with patch('builtins.print') as mock_print:
-                    subtimefix.main()
+                    sub_time_fix.main()
 
                     # Should have one success and one error
                     assert mock_process.call_count == 2
@@ -286,12 +286,12 @@ Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Test subtitle line 2
             ass_file = Path("subtitle.ass")
             ass_file.write_text("[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,Test")
 
-            with patch('subtimefix.process_file') as mock_process:
+            with patch('sub_time_fix.process_file') as mock_process:
                 mock_process.return_value = (1, 2)
 
                 with patch('sys.argv', ['subtimefix', '--time', '3000']):
                     with patch('builtins.print') as mock_print:
-                        subtimefix.main()
+                        sub_time_fix.main()
 
                         # Should process the file in current directory
                         mock_process.assert_called_once()

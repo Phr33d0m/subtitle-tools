@@ -1,5 +1,5 @@
 """
-Mode-specific tests for submerge.
+Mode-specific tests for sub_merge.
 
 Tests the behavior differences between --mode replace and --mode append,
 particularly around font handling and subtitle preservation.
@@ -7,7 +7,7 @@ particularly around font handling and subtitle preservation.
 
 from pathlib import Path
 from unittest.mock import patch, Mock
-import submerge
+from tests.test_submerge.conftest import sub_merge
 
 
 class TestReplaceMode:
@@ -18,19 +18,19 @@ class TestReplaceMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
-        font_attachments = [submerge.FontAttachment(
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
+        font_attachments = [sub_merge.FontAttachment(
             path=fonts_dir / "Arial.ttf",
             mime_type="application/x-truetype-font"
         )]
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
@@ -54,15 +54,15 @@ class TestReplaceMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock encoding detection
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],  # No external fonts
@@ -83,15 +83,15 @@ class TestReplaceMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -116,13 +116,13 @@ class TestReplaceMode:
 
         video_path = Path("/test/video.mkv")
         subtitle_files = []
-        font_attachments = [submerge.FontAttachment(
+        font_attachments = [sub_merge.FontAttachment(
             Path("/test/Arial.ttf"),
             "application/x-truetype-font"
         )]
 
-        with patch('submerge.get_existing_font_attachments'):
-            submerge.merge_video_with_subtitles(
+        with patch('sub_merge.get_existing_font_attachments'):
+            sub_merge.merge_video_with_subtitles(
                 video_path=video_path,
                 subtitle_files=subtitle_files,
                 font_attachments=font_attachments,
@@ -140,7 +140,7 @@ class TestReplaceMode:
         mock_run.return_value = Mock(returncode=0)
 
         video_path = Path("/test/video.mkv")
-        subtitle_files = [submerge.SubtitleFile(
+        subtitle_files = [sub_merge.SubtitleFile(
             Path("/test/video.ass"),
             "und",
             ".ass",
@@ -148,10 +148,10 @@ class TestReplaceMode:
         )]
         font_attachments = []
 
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
+        with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["ExistingFont.ttf"]
 
-            submerge.merge_video_with_subtitles(
+            sub_merge.merge_video_with_subtitles(
                 video_path=video_path,
                 subtitle_files=subtitle_files,
                 font_attachments=font_attachments,
@@ -172,19 +172,19 @@ class TestAppendMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Mock existing font attachments to avoid subprocess calls
-            with patch('submerge.get_existing_font_attachments') as mock_fonts:
+            with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
                 mock_fonts.return_value = []
 
                 # Capture the logging to extract the command in dry_run mode
                 with patch('logging.info') as mock_log:
-                    result = submerge.merge_video_with_subtitles(
+                    result = sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=[],
@@ -211,10 +211,10 @@ class TestAppendMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # Create font that already exists in the video
-        font_attachment = submerge.FontAttachment(
+        font_attachment = sub_merge.FontAttachment(
             path=fonts_dir / "Arial.ttf",
             mime_type="application/x-truetype-font"
         )
@@ -222,16 +222,16 @@ class TestAppendMode:
         existing_fonts = ["Arial.ttf"]  # Same font already exists in video
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Mock existing font attachments to simulate the font already existing
-            with patch('submerge.get_existing_font_attachments') as mock_fonts:
+            with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
                 mock_fonts.return_value = existing_fonts
 
                 # Capture the logging to extract the command in dry_run mode
                 with patch('logging.info') as mock_log:
-                    result = submerge.merge_video_with_subtitles(
+                    result = sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=[font_attachment],
@@ -259,10 +259,10 @@ class TestAppendMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # Create a new font that doesn't exist in the video
-        font_attachment = submerge.FontAttachment(
+        font_attachment = sub_merge.FontAttachment(
             path=fonts_dir / "NewFont.otf",
             mime_type="application/vnd.ms-opentype"
         )
@@ -270,16 +270,16 @@ class TestAppendMode:
         existing_fonts = ["Arial.ttf"]  # Different font exists in video
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Mock existing font attachments to simulate different fonts existing
-            with patch('submerge.get_existing_font_attachments') as mock_fonts:
+            with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
                 mock_fonts.return_value = existing_fonts
 
                 # Capture the logging to extract the command in dry_run mode
                 with patch('logging.info') as mock_log:
-                    result = submerge.merge_video_with_subtitles(
+                    result = sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=[font_attachment],
@@ -306,10 +306,10 @@ class TestAppendMode:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # Create font with similar base name to existing one
-        font_attachment = submerge.FontAttachment(
+        font_attachment = sub_merge.FontAttachment(
             path=fonts_dir / "Arial.ttf",  # Use same name to test deduplication
             mime_type="application/x-truetype-font"
         )
@@ -317,16 +317,16 @@ class TestAppendMode:
         existing_fonts = ["Arial.ttf"]  # Same font already exists
 
         # Mock encoding detection to avoid subprocess calls interfering with mkvmerge mock
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Mock existing font attachments to simulate similar base name existing
-            with patch('submerge.get_existing_font_attachments') as mock_fonts:
+            with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
                 mock_fonts.return_value = existing_fonts
 
                 # Capture the logging to extract the command in dry_run mode
                 with patch('logging.info') as mock_log:
-                    result = submerge.merge_video_with_subtitles(
+                    result = sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=[font_attachment],
@@ -355,7 +355,7 @@ class TestAppendMode:
         mock_run.return_value = Mock(returncode=0)
 
         video_path = Path("/test/video.mkv")
-        subtitle_files = [submerge.SubtitleFile(
+        subtitle_files = [sub_merge.SubtitleFile(
             Path("/test/video.srt"),
             "eng",
             ".srt",
@@ -363,10 +363,10 @@ class TestAppendMode:
         )]
         font_attachments = []
 
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
+        with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["ExistingFont.ttf"]
 
-            submerge.merge_video_with_subtitles(
+            sub_merge.merge_video_with_subtitles(
                 video_path=video_path,
                 subtitle_files=subtitle_files,
                 font_attachments=font_attachments,
@@ -388,7 +388,7 @@ class TestModeValidation:
         existing_fonts = ["ExistingFont.ttf"]
 
         # Replace mode should always attach fonts
-        assert submerge.should_attach_font(font_path, existing_fonts, "replace") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "replace") is True
 
     def test_should_attach_font_append_mode_new_font(self):
         """Test font attachment logic in append mode with new font."""
@@ -396,7 +396,7 @@ class TestModeValidation:
         existing_fonts = ["ExistingFont.ttf"]
 
         # Append mode should attach new fonts
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is True
 
     def test_should_attach_font_append_mode_duplicate(self):
         """Test font attachment logic in append mode with duplicate."""
@@ -404,7 +404,7 @@ class TestModeValidation:
         existing_fonts = ["Arial.ttf"]
 
         # Append mode should not attach duplicates
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is False
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is False
 
     def test_should_attach_font_append_mode_exact_name(self):
         """Test font attachment logic with exact name match."""
@@ -412,7 +412,7 @@ class TestModeValidation:
         existing_fonts = ["CustomFont.ttf"]
 
         # Append mode should not attach exact duplicates
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is False
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is False
 
     def test_should_attach_font_append_mode_case_insensitive(self):
         """Test font attachment logic is case insensitive."""
@@ -420,7 +420,7 @@ class TestModeValidation:
         existing_fonts = ["arial.ttf"]
 
         # Append mode should be case insensitive for duplicates
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is False
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is False
 
     def test_should_attach_font_append_mode_no_existing(self):
         """Test font attachment logic when no existing fonts."""
@@ -428,7 +428,7 @@ class TestModeValidation:
         existing_fonts = []
 
         # Append mode should attach when no existing fonts
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is True
 
     def test_should_attach_font_similar_base_names(self):
         """Test font attachment logic with similar base names."""
@@ -437,7 +437,7 @@ class TestModeValidation:
 
         # Append mode should attach different base names (Arial_Bold != Arial)
         # The stems are different: Arial_Bold vs Arial and Arial-Italic
-        assert submerge.should_attach_font(font_path, existing_fonts, "append") is True
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "append") is True
 
     def test_should_attach_font_invalid_mode(self):
         """Test font attachment logic with invalid mode."""
@@ -445,7 +445,7 @@ class TestModeValidation:
         existing_fonts = ["ExistingFont.ttf"]
 
         # Invalid mode should default to not attaching
-        assert submerge.should_attach_font(font_path, existing_fonts, "invalid") is False
+        assert sub_merge.should_attach_font(font_path, existing_fonts, "invalid") is False
 
 
 class TestModeTransitions:
@@ -456,8 +456,8 @@ class TestModeTransitions:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
-        font_attachments = [submerge.FontAttachment(
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
+        font_attachments = [sub_merge.FontAttachment(
             path=fonts_dir / "Arial.ttf",
             mime_type="application/x-truetype-font"
         )]
@@ -465,11 +465,11 @@ class TestModeTransitions:
         commands = {}
 
         # Test replace mode with fonts
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
-            with patch('submerge.get_existing_font_attachments'):
+            with patch('sub_merge.get_existing_font_attachments'):
                 with patch('logging.info') as mock_log:
-                    submerge.merge_video_with_subtitles(
+                    sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=font_attachments,
@@ -487,11 +487,11 @@ class TestModeTransitions:
                     commands['replace'] = cmd_call
 
         # Test append mode
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
-            with patch('submerge.get_existing_font_attachments'):
+            with patch('sub_merge.get_existing_font_attachments'):
                 with patch('logging.info') as mock_log:
-                    submerge.merge_video_with_subtitles(
+                    sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=font_attachments,
@@ -520,16 +520,16 @@ class TestModeTransitions:
         video_path = temp_dir / "test.mkv"
         video_path.write_text("dummy video content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
         font_attachments = []
 
         commands = {}
 
         # Test replace mode without fonts
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
             with patch('logging.info') as mock_log:
-                submerge.merge_video_with_subtitles(
+                sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=font_attachments,
@@ -547,11 +547,11 @@ class TestModeTransitions:
                 commands['replace'] = cmd_call
 
         # Test append mode without fonts
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
-            with patch('submerge.get_existing_font_attachments'):
+            with patch('sub_merge.get_existing_font_attachments'):
                 with patch('logging.info') as mock_log:
-                    submerge.merge_video_with_subtitles(
+                    sub_merge.merge_video_with_subtitles(
                         video_path=video_path,
                         subtitle_files=subtitle_files,
                         font_attachments=font_attachments,

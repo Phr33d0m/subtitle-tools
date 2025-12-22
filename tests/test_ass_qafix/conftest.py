@@ -2,19 +2,16 @@
 ASS QA Fix-specific pytest configuration and fixtures.
 
 This module provides fixtures and configuration specific to testing
-the ass_qafix.py quality assurance and auto-fixer tool.
+the ass-qafix.py quality assurance and auto-fixer tool.
 """
 
 import pytest
-import sys
 from pathlib import Path
 
-# Add project root to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from tests.conftest import import_tool
 
-# Import ass_qafix for testing
-
-# Import shared fixtures
+# Import ass-qafix for testing
+ass_qafix = import_tool("ass-qafix")
 
 
 @pytest.fixture

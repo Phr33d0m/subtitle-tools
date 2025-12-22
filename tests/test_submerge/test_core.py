@@ -1,5 +1,5 @@
 """
-Core function tests for submerge.
+Core function tests for sub_merge.
 
 Tests core functionality including file discovery, subtitle matching,
 and font collection without involving external dependencies.
@@ -8,7 +8,7 @@ and font collection without involving external dependencies.
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, Mock
-import submerge
+from tests.test_submerge.conftest import sub_merge
 
 
 class TestVideoFileDiscovery:
@@ -22,12 +22,12 @@ class TestVideoFileDiscovery:
         (temp_dir / "subtitle1.srt").write_text("dummy subtitle")
         (temp_dir / "not_video.txt").write_text("dummy text")
 
-        video_files = submerge.find_video_files(temp_dir, recursive=False)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=False)
 
         assert len(video_files) == 2
         assert video_files[0].name in ["video1.mkv", "video2.mp4"]
         assert video_files[1].name in ["video1.mkv", "video2.mp4"]
-        assert all(video.suffix in submerge.DEFAULT_VIDEO_EXTENSIONS for video in video_files)
+        assert all(video.suffix in sub_merge.DEFAULT_VIDEO_EXTENSIONS for video in video_files)
 
     def test_find_video_files_recursive(self, temp_dir):
         """Test finding video files with recursion."""
@@ -39,7 +39,7 @@ class TestVideoFileDiscovery:
         (subdir / "video2.mp4").write_text("dummy video")
         (subdir / "subtitle.srt").write_text("dummy subtitle")
 
-        video_files = submerge.find_video_files(temp_dir, recursive=True)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=True)
 
         assert len(video_files) == 2
         video_names = [v.name for v in video_files]
@@ -48,7 +48,7 @@ class TestVideoFileDiscovery:
 
     def test_find_video_files_empty_directory(self, temp_dir):
         """Test finding video files in empty directory."""
-        video_files = submerge.find_video_files(temp_dir, recursive=False)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=False)
         assert video_files == []
 
     def test_find_video_files_case_insensitive(self, temp_dir):
@@ -56,7 +56,7 @@ class TestVideoFileDiscovery:
         (temp_dir / "video1.MKV").write_text("dummy video")
         (temp_dir / "video2.MP4").write_text("dummy video")
 
-        video_files = submerge.find_video_files(temp_dir, recursive=False)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=False)
 
         assert len(video_files) == 2
         assert video_files[0].suffix in [".MKV", ".MP4"]
@@ -73,7 +73,7 @@ class TestVideoFileDiscovery:
         for filename in unsupported_files:
             (temp_dir / filename).write_text("dummy video")
 
-        video_files = submerge.find_video_files(temp_dir, recursive=False)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=False)
 
         assert len(video_files) == len(supported_files)
         for video_file in video_files:
@@ -97,7 +97,7 @@ class TestSubtitleFileDiscovery:
         (temp_dir / "other_video.eng.srt").write_text("Other subtitle")
         (temp_dir / "test_video.txt").write_text("Not a subtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 3
         subtitle_names = [sub.path.name for sub in subtitle_files]
@@ -113,7 +113,7 @@ class TestSubtitleFileDiscovery:
         (temp_dir / "test_video.eng.srt").write_text("SRT subtitle")
         (temp_dir / "test_video.eng.ass").write_text("ASS subtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 2
         # ASS file should come first due to higher priority
@@ -129,7 +129,7 @@ class TestSubtitleFileDiscovery:
         (temp_dir / "other_video.eng.srt").write_text("Other subtitle")
         (temp_dir / "test_video.txt").write_text("Not a subtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
         assert subtitle_files == []
 
     def test_find_subtitle_files_complex_naming(self, temp_dir):
@@ -141,7 +141,7 @@ class TestSubtitleFileDiscovery:
         subtitle_path = temp_dir / "The.Movie.2023.1080p.BluRay.x264.eng.srt"
         subtitle_path.write_text("English subtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].path == subtitle_path
@@ -155,7 +155,7 @@ class TestSubtitleFileDiscovery:
         subtitle_path = temp_dir / "Movie [2023].eng.srt"
         subtitle_path.write_text("English subtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].path.name == "Movie [2023].eng.srt"
@@ -168,7 +168,7 @@ class TestSubtitleFileDiscovery:
         subtitle_path = temp_dir / "test_video.se.srt"
         subtitle_path.write_text("Svensk text")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].language_code == "swe"  # Should be mapped
@@ -181,7 +181,7 @@ class TestSubtitleFileDiscovery:
         (temp_dir / "test_video.eng.srt").write_text("English 1")
         (temp_dir / "test_video.eng.ass").write_text("English 2")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 2
         # Both should have same language code
@@ -203,7 +203,7 @@ class TestFontCollection:
         (fonts_dir / "Times.otf").write_bytes(b"font data")
         (fonts_dir / "Custom.woff").write_bytes(b"font data")
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
 
         assert len(font_attachments) == 3
         font_names = [font.path.name for font in font_attachments]
@@ -226,13 +226,13 @@ class TestFontCollection:
         (nested_dir / "Times.otf").write_bytes(b"font data")
         (deep_nested / "Custom.woff").write_bytes(b"font data")
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=True)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=True)
 
         assert len(font_attachments) == 3
 
     def test_collect_font_attachments_no_fonts_dir(self, temp_dir):
         """Test font collection when no Fonts directory exists."""
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
         assert font_attachments == []
 
     def test_collect_font_extensions_filtering(self, temp_dir):
@@ -250,7 +250,7 @@ class TestFontCollection:
         (fonts_dir / "image.png").write_bytes(b"not a font")
         (fonts_dir / "data.json").write_text('{"not": "font"}')
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
 
         assert len(font_attachments) == 3
         extension_names = [font.path.suffix for font in font_attachments]
@@ -264,10 +264,10 @@ class TestFileValidation:
     def test_is_video_file_supported_extensions(self, temp_dir):
         """Test video file validation with supported extensions."""
         # Create files with supported extensions
-        for ext in submerge.DEFAULT_VIDEO_EXTENSIONS:
+        for ext in sub_merge.DEFAULT_VIDEO_EXTENSIONS:
             file_path = temp_dir / f"test{ext}"
             file_path.write_text("dummy video")
-            assert submerge.is_video_file(file_path) is True
+            assert sub_merge.is_video_file(file_path) is True
 
     def test_is_video_file_unsupported_extensions(self, temp_dir):
         """Test video file validation with unsupported extensions."""
@@ -276,16 +276,16 @@ class TestFileValidation:
         for ext in unsupported_extensions:
             file_path = temp_dir / f"test{ext}"
             file_path.write_text("dummy content")
-            assert submerge.is_video_file(file_path) is False
+            assert sub_merge.is_video_file(file_path) is False
 
     def test_is_video_file_nonexistent_file(self):
         """Test video file validation with non-existent file."""
         non_existent = Path("/nonexistent/path/video.mkv")
-        assert submerge.is_video_file(non_existent) is False
+        assert sub_merge.is_video_file(non_existent) is False
 
     def test_is_video_file_directory(self, temp_dir):
         """Test video file validation with directory."""
-        assert submerge.is_video_file(temp_dir) is False
+        assert sub_merge.is_video_file(temp_dir) is False
 
     @patch('subprocess.run')
     def test_get_mime_type_success(self, mock_run):
@@ -296,7 +296,7 @@ class TestFileValidation:
         )
 
         file_path = Path("/test/file.txt")
-        mime_type = submerge.get_mime_type(file_path)
+        mime_type = sub_merge.get_mime_type(file_path)
 
         assert mime_type == "text/plain"
         mock_run.assert_called_once_with(
@@ -313,7 +313,7 @@ class TestFileValidation:
         mock_run.side_effect = subprocess.TimeoutExpired('file', 10)
 
         file_path = Path("/test/file.txt")
-        mime_type = submerge.get_mime_type(file_path)
+        mime_type = sub_merge.get_mime_type(file_path)
 
         assert mime_type == "application/octet-stream"
 
@@ -323,6 +323,6 @@ class TestFileValidation:
         mock_run.side_effect = subprocess.CalledProcessError(1, 'file')
 
         file_path = Path("/test/file.txt")
-        mime_type = submerge.get_mime_type(file_path)
+        mime_type = sub_merge.get_mime_type(file_path)
 
         assert mime_type == "application/octet-stream"

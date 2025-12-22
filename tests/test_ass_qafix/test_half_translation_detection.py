@@ -10,7 +10,7 @@ from typing import Dict, Set
 
 import pytest
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestExtractMinute:

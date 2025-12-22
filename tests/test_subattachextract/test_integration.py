@@ -1,5 +1,5 @@
 """
-Integration tests for subattachextract.
+Integration tests for sub_attachment_extract.
 
 Tests end-to-end processing workflows, parallel execution,
 file handling, and complex extraction scenarios.
@@ -7,7 +7,7 @@ file handling, and complex extraction scenarios.
 
 import time
 from unittest.mock import patch
-import subattachextract
+from tests.test_subattachextract.conftest import sub_attachment_extract
 
 
 class TestProcessingWorkflows:
@@ -15,7 +15,7 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_success(self, temp_dir):
         """Test successful attachment processing for a single MKV file."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -23,8 +23,8 @@ class TestProcessingWorkflows:
 
         # Mock successful attachment identification and extraction
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000),
-            subattachextract.Attachment(2, "cover.jpg", "image/jpeg", 5000)
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000),
+            sub_attachment_extract.Attachment(2, "cover.jpg", "image/jpeg", 5000)
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -43,7 +43,7 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_no_attachments(self, temp_dir):
         """Test processing file with no attachments."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -59,7 +59,7 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_skipping_existing(self, temp_dir):
         """Test processing with existing filename skipping."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -69,8 +69,8 @@ class TestProcessingWorkflows:
         extractor.existing_files.add("font.ttf")
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000),  # Should be skipped
-            subattachextract.Attachment(2, "cover.jpg", "image/jpeg", 5000)  # Should be processed
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000),  # Should be skipped
+            sub_attachment_extract.Attachment(2, "cover.jpg", "image/jpeg", 5000)  # Should be processed
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -84,14 +84,14 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_extraction_failure(self, temp_dir):
         """Test processing with extraction failures."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
         outroot.mkdir()
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000)
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000)
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -105,14 +105,14 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_race_condition(self, temp_dir):
         """Test handling race condition when file exists during processing."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
         outroot.mkdir()
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000)
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000)
         ]
         dest_path = outroot / "Fonts" / "font.ttf"
 
@@ -135,7 +135,7 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_invalid_file(self, temp_dir):
         """Test processing non-existent or empty file."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "nonexistent.mkv"
         outroot = temp_dir / "output"
 
@@ -147,7 +147,7 @@ class TestProcessingWorkflows:
 
     def test_process_attachments_for_file_empty_file(self, temp_dir):
         """Test processing empty file."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "empty.mkv"
         mkv_file.write_bytes(b"")  # Empty file
         outroot = temp_dir / "output"
@@ -160,7 +160,7 @@ class TestProcessingWorkflows:
 
     def test_process_files_single_file(self, temp_dir):
         """Test processing a single file."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -175,7 +175,7 @@ class TestProcessingWorkflows:
 
     def test_process_files_no_files(self, temp_dir):
         """Test processing with no files."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         outroot = temp_dir / "output"
 
         with patch.object(extractor, 'log') as mock_log:
@@ -185,7 +185,7 @@ class TestProcessingWorkflows:
 
     def test_process_files_parallel_execution(self, temp_dir):
         """Test parallel processing of multiple files."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False, max_workers=2)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False, max_workers=2)
 
         # Create multiple MKV files
         mkv_files = []
@@ -214,7 +214,7 @@ class TestProcessingWorkflows:
 
     def test_process_files_with_progress_display(self, temp_dir):
         """Test progress display during parallel processing."""
-        extractor = subattachextract.AttachmentExtractor(verbose=True, max_workers=2)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=True, max_workers=2)
 
         # Create multiple files
         mkv_files = []
@@ -237,7 +237,7 @@ class TestProcessingWorkflows:
 
     def test_process_files_with_errors(self, temp_dir):
         """Test error handling during parallel processing."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False, max_workers=2)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False, max_workers=2)
 
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
@@ -267,17 +267,17 @@ class TestMimeAndCategoryHandling:
 
     def test_process_various_mime_types(self, temp_dir):
         """Test processing files with various MIME types."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
         outroot.mkdir()
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000),
-            subattachextract.Attachment(2, "cover.jpg", "image/jpeg", 5000),
-            subattachextract.Attachment(3, "data.bin", "application/octet-stream", 2000),
-            subattachextract.Attachment(4, "script.js", "text/javascript", 1500)
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000),
+            sub_attachment_extract.Attachment(2, "cover.jpg", "image/jpeg", 5000),
+            sub_attachment_extract.Attachment(3, "data.bin", "application/octet-stream", 2000),
+            sub_attachment_extract.Attachment(4, "script.js", "text/javascript", 1500)
         ]
 
         extracted_paths = []
@@ -303,17 +303,17 @@ class TestMimeAndCategoryHandling:
 
     def test_filename_based_categorization(self, temp_dir):
         """Test categorization based on filename when MIME is generic."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
         outroot.mkdir()
 
         attachments = [
-            subattachextract.Attachment(1, "movie_font.ttf", "application/octet-stream", 1000),
-            subattachextract.Attachment(2, "movie_cover.jpg", "application/octet-stream", 5000),
-            subattachextract.Attachment(3, "cover.png", "application/octet-stream", 3000),
-            subattachextract.Attachment(4, "poster.webp", "application/octet-stream", 4000)
+            sub_attachment_extract.Attachment(1, "movie_font.ttf", "application/octet-stream", 1000),
+            sub_attachment_extract.Attachment(2, "movie_cover.jpg", "application/octet-stream", 5000),
+            sub_attachment_extract.Attachment(3, "cover.png", "application/octet-stream", 3000),
+            sub_attachment_extract.Attachment(4, "poster.webp", "application/octet-stream", 4000)
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -330,14 +330,14 @@ class TestDryRunMode:
 
     def test_dry_run_mode_workflow(self, temp_dir):
         """Test complete dry-run workflow."""
-        extractor = subattachextract.AttachmentExtractor(dry_run=True, verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(dry_run=True, verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000),
-            subattachextract.Attachment(2, "cover.jpg", "image/jpeg", 5000)
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000),
+            sub_attachment_extract.Attachment(2, "cover.jpg", "image/jpeg", 5000)
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -358,7 +358,7 @@ class TestDryRunMode:
 
     def test_dry_run_with_existing_files(self, temp_dir):
         """Test dry-run mode with existing files."""
-        extractor = subattachextract.AttachmentExtractor(dry_run=True, verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(dry_run=True, verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -367,8 +367,8 @@ class TestDryRunMode:
         extractor.existing_files.add("font.ttf")
 
         attachments = [
-            subattachextract.Attachment(1, "font.ttf", "font/ttf", 1000),  # Should be skipped
-            subattachextract.Attachment(2, "cover.jpg", "image/jpeg", 5000)  # Should be "extracted"
+            sub_attachment_extract.Attachment(1, "font.ttf", "font/ttf", 1000),  # Should be skipped
+            sub_attachment_extract.Attachment(2, "cover.jpg", "image/jpeg", 5000)  # Should be "extracted"
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):
@@ -386,7 +386,7 @@ class TestComplexScenarios:
 
     def test_mixed_attachment_types_single_file(self, temp_dir):
         """Test single MKV file with mixed attachment types."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
@@ -394,12 +394,12 @@ class TestComplexScenarios:
 
         # Mix of fonts, covers, and other files
         attachments = [
-            subattachextract.Attachment(1, "arial.ttf", "font/ttf", 1000),
-            subattachextract.Attachment(2, "movie_cover.jpg", "image/jpeg", 5000),
-            subattachextract.Attachment(3, "chapter_info.txt", "text/plain", 500),
-            subattachextract.Attachment(4, "subtitle_font.woff", "font/woff", 2000),
-            subattachextract.Attachment(5, "backdrop.png", "image/png", 8000),
-            subattachextract.Attachment(6, "metadata.xml", "application/xml", 1500)
+            sub_attachment_extract.Attachment(1, "arial.ttf", "font/ttf", 1000),
+            sub_attachment_extract.Attachment(2, "movie_cover.jpg", "image/jpeg", 5000),
+            sub_attachment_extract.Attachment(3, "chapter_info.txt", "text/plain", 500),
+            sub_attachment_extract.Attachment(4, "subtitle_font.woff", "font/woff", 2000),
+            sub_attachment_extract.Attachment(5, "backdrop.png", "image/png", 8000),
+            sub_attachment_extract.Attachment(6, "metadata.xml", "application/xml", 1500)
         ]
 
         # Simulate one extraction failure
@@ -417,7 +417,7 @@ class TestComplexScenarios:
 
     def test_batch_processing_multiple_files(self, temp_dir):
         """Test processing multiple MKV files in batch."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False, max_workers=3)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False, max_workers=3)
         outroot = temp_dir / "output"
 
         # Create multiple MKV files with different attachment counts
@@ -434,7 +434,7 @@ class TestComplexScenarios:
             file_index = int(mkv_file.stem[-1])  # Extract number from filename
             count = attachment_counts[file_index]
             # Use unique filenames to avoid conflicts between files
-            return [subattachextract.Attachment(j, f"file{file_index}_att{j}.bin", "application/octet-stream")
+            return [sub_attachment_extract.Attachment(j, f"file{file_index}_att{j}.bin", "application/octet-stream")
                    for j in range(count)]
 
         with patch.object(extractor, 'build_existing_name_set'):
@@ -449,7 +449,7 @@ class TestComplexScenarios:
 
     def test_large_scale_processing(self, temp_dir):
         """Test processing many files to test performance and robustness."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False, max_workers=4)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False, max_workers=4)
         outroot = temp_dir / "output"
 
         # Create 10 MKV files
@@ -462,8 +462,8 @@ class TestComplexScenarios:
         # Each file has 2 attachments with unique filenames to avoid conflicts
         def mock_get_attachments(mkv_file):
             file_index = int(mkv_file.stem[-2:])  # Extract number from filename
-            return [subattachextract.Attachment(1, f"font_{file_index}.ttf", "font/ttf"),
-                   subattachextract.Attachment(2, f"cover_{file_index}.jpg", "image/jpeg")]
+            return [sub_attachment_extract.Attachment(1, f"font_{file_index}.ttf", "font/ttf"),
+                   sub_attachment_extract.Attachment(2, f"cover_{file_index}.jpg", "image/jpeg")]
 
         with patch.object(extractor, 'build_existing_name_set'):
             with patch.object(extractor, 'get_mkv_attachments', side_effect=mock_get_attachments):
@@ -482,17 +482,17 @@ class TestComplexScenarios:
 
     def test_unicode_and_special_filenames(self, temp_dir):
         """Test handling of unicode and special characters in filenames."""
-        extractor = subattachextract.AttachmentExtractor(verbose=False)
+        extractor = sub_attachment_extract.AttachmentExtractor(verbose=False)
         mkv_file = temp_dir / "movie.mkv"
         mkv_file.write_bytes(b"mkv content")
         outroot = temp_dir / "output"
         outroot.mkdir()
 
         attachments = [
-            subattachextract.Attachment(1, "café.ttf", "font/ttf", 1000),
-            subattachextract.Attachment(2, "movie_cover.jpg", "image/jpeg", 5000),
-            subattachextract.Attachment(3, "привет.ttf", "font/ttf", 2000),
-            subattachextract.Attachment(4, "file:with*special?chars.ttf", "font/ttf", 1500)
+            sub_attachment_extract.Attachment(1, "café.ttf", "font/ttf", 1000),
+            sub_attachment_extract.Attachment(2, "movie_cover.jpg", "image/jpeg", 5000),
+            sub_attachment_extract.Attachment(3, "привет.ttf", "font/ttf", 2000),
+            sub_attachment_extract.Attachment(4, "file:with*special?chars.ttf", "font/ttf", 1500)
         ]
 
         with patch.object(extractor, 'get_mkv_attachments', return_value=attachments):

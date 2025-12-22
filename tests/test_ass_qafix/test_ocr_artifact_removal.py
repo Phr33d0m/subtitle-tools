@@ -9,7 +9,7 @@ This module tests the detection and removal of OCR artifacts such as:
 
 from pathlib import Path
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestOCRArtifactRemoval:

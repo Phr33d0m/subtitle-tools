@@ -10,7 +10,7 @@ from pathlib import Path
 from io import StringIO
 import sys
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestShortDurationDetection:

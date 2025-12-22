@@ -1,21 +1,19 @@
 """
-Subextract-specific pytest configuration and fixtures.
+Sub-extract-specific pytest configuration and fixtures.
 
 This module provides fixtures and configuration specific to testing
-the subextract.py subtitle extraction tool.
+the sub-extract.py subtitle extraction tool.
 """
 
 import pytest
-import sys
 from pathlib import Path
 from unittest.mock import patch, Mock
 import json
 
-# Add project root to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from tests.conftest import import_tool
 
-# Import subextract for testing
-import subextract
+# Import sub-extract for testing
+sub_extract = import_tool("sub-extract")
 
 # Import shared fixtures
 
@@ -219,7 +217,7 @@ def complex_mkv_setup(temp_dir):
 def subtitle_track_factory():
     """Factory for creating mock SubTrack objects."""
     def create_subtrack(track_id, language="eng", codec="S_TEXT/UTF8", track_name=None):
-        return subextract.SubTrack(
+        return sub_extract.SubTrack(
             id=track_id,
             language=language,
             codec=codec,

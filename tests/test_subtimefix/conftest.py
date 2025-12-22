@@ -1,20 +1,17 @@
 """
-Subtimefix-specific pytest configuration and fixtures.
+Sub-time-fix-specific pytest configuration and fixtures.
 
 This module provides fixtures and configuration specific to testing
-the subtimefix.py timestamp shifting tool.
+the sub-time-fix.py timestamp shifting tool.
 """
 
 import pytest
-import sys
 from pathlib import Path
 
-# Add project root to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from tests.conftest import import_tool
 
-# Import subtimefix for testing
-
-# Import shared fixtures
+# Import sub-time-fix for testing
+sub_time_fix = import_tool("sub-time-fix")
 
 
 @pytest.fixture

@@ -19,41 +19,29 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def import_dashed_module(module_name: str):
-    """Import a module with dashes in its name.
+def import_tool(name: str):
+    """Import a tool module by its filename (without .py extension).
 
     Python doesn't allow dashes in module names for normal imports,
     so we use importlib to load them dynamically.
-    """
-    file_path = PROJECT_ROOT / f"{module_name}.py"
-    if not file_path.exists():
-        raise ImportError(f"Module file not found: {file_path}")
 
-    # Convert dashed name to valid Python identifier for the module
-    safe_name = module_name.replace("-", "_")
-    spec = importlib.util.spec_from_file_location(safe_name, file_path)
+    Usage:
+        ass_qafix = import_tool("ass-qafix")
+        sub_merge = import_tool("sub-merge")
+    """
+    file_path = PROJECT_ROOT / f"{name}.py"
+    if not file_path.exists():
+        raise ImportError(f"Tool not found: {file_path}")
+
+    spec = importlib.util.spec_from_file_location(name, file_path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[safe_name] = module
+    # Register in sys.modules before execution (required for dataclasses)
+    sys.modules[name] = module
+    # Also register with underscore name for patch() compatibility
+    underscore_name = name.replace("-", "_")
+    sys.modules[underscore_name] = module
     spec.loader.exec_module(module)
     return module
-
-
-# Pre-import all tool modules and register them with underscore names
-# This allows test files to use: import ass_qafix, import submerge, etc.
-_module_mappings = {
-    "ass-qafix": "ass_qafix",
-    "sub-merge": "submerge",
-    "sub-extract": "subextract",
-    "sub-attachment-extract": "subattachextract",
-    "sub-time-fix": "subtimefix",
-}
-
-for dashed_name, underscore_name in _module_mappings.items():
-    try:
-        module = import_dashed_module(dashed_name)
-        sys.modules[underscore_name] = module
-    except ImportError:
-        pass  # Module may not exist in all test environments
 
 # Import shared fixtures (avoiding conflicts with existing ones)
 

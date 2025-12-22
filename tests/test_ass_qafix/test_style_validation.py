@@ -7,7 +7,7 @@ against the styles defined in the [V4+ Styles] section.
 
 from pathlib import Path
 
-import ass_qafix
+from tests.test_ass_qafix.conftest import ass_qafix
 
 
 class TestStyleValidation:

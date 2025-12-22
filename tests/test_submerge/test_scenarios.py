@@ -1,5 +1,5 @@
 """
-Real-world scenario tests for submerge.
+Real-world scenario tests for sub_merge.
 
 Tests edge cases and practical scenarios that users commonly encounter,
 including Swedish language mapping, encoding issues, and complex file naming.
@@ -7,7 +7,7 @@ including Swedish language mapping, encoding issues, and complex file naming.
 
 import subprocess
 from unittest.mock import patch, Mock
-import submerge
+from tests.test_submerge.conftest import sub_merge
 
 
 class TestSwedishLanguageMapping:
@@ -22,7 +22,7 @@ class TestSwedishLanguageMapping:
         subtitle_path = temp_dir / "film.se.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nSvensk text")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].language_code == "swe"  # Should be mapped
@@ -37,7 +37,7 @@ class TestSwedishLanguageMapping:
         subtitle_path = temp_dir / "film.sv.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nSvensk text")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].language_code == "swe"  # Should be mapped
@@ -54,7 +54,7 @@ class TestSwedishLanguageMapping:
         (temp_dir / "movie.eng.srt").write_text("English")
         (temp_dir / "movie.swe.srt").write_text("Swedish proper")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 4
 
@@ -75,7 +75,7 @@ class TestSwedishLanguageMapping:
         subtitle_path = temp_dir / "anime.se.ass"
         subtitle_path.write_text("[V4+ Styles]\nFormat: Name, Fontname\nStyle: Default,Arial\n\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,Svensk text")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].language_code == "swe"
@@ -91,12 +91,12 @@ class TestEncodingScenarios:
         subtitle_path = temp_dir / "video.eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nUTF-8 content: ñáéíóú")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(subtitle_path, "video")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(subtitle_path, "video")]
 
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0)
 
-            result = submerge.merge_video_with_subtitles(
+            result = sub_merge.merge_video_with_subtitles(
                 video_path=sample_video_file,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -115,15 +115,15 @@ class TestEncodingScenarios:
         subtitle_path = temp_dir / "video.eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nLatin-1 content: àèìòù")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(subtitle_path, "video")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(subtitle_path, "video")]
 
         # Mock encoding detection to return ISO-8859-1
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "ISO-8859-1"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=sample_video_file,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -145,15 +145,15 @@ class TestEncodingScenarios:
         subtitle_path = temp_dir / "video.eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nUnknown encoding")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(subtitle_path, "video")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(subtitle_path, "video")]
 
         # Mock encoding detection to return mapped unknown encoding
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "ISO-8859-1"  # unknown-8bit maps to ISO-8859-1
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=sample_video_file,
                     subtitle_files=subtitle_files,
                     font_attachments=[],
@@ -175,7 +175,7 @@ class TestEncodingScenarios:
         subtitle_path = temp_dir / "video.eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nTest content")
 
-        subtitle_files = [submerge.SubtitleFile.from_path(subtitle_path, "video")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(subtitle_path, "video")]
 
         with patch('subprocess.run') as mock_run:
             # Mock encoding detection failure
@@ -184,7 +184,7 @@ class TestEncodingScenarios:
                 Mock(returncode=0)  # mkvmerge succeeds
             ]
 
-            result = submerge.merge_video_with_subtitles(
+            result = sub_merge.merge_video_with_subtitles(
                 video_path=sample_video_file,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -209,7 +209,7 @@ class TestComplexFileNaming:
         subtitle_path = temp_dir / "The.Matrix.1999.1080p.BluRay.x264.eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nSubtitle")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].path == subtitle_path
@@ -231,7 +231,7 @@ class TestComplexFileNaming:
             subtitle_path = temp_dir / filename
             subtitle_path.write_text(f"Subtitle in {expected_lang}")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 3
         found_languages = {sub.language_code for sub in subtitle_files}
@@ -246,7 +246,7 @@ class TestComplexFileNaming:
         subtitle_path = temp_dir / "Movie [2023] (Director's Cut).eng.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nSpecial characters")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].path.name == "Movie [2023] (Director's Cut).eng.srt"
@@ -259,7 +259,7 @@ class TestComplexFileNaming:
         subtitle_path = temp_dir / "Amélie.fra.srt"
         subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nFilm français")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 1
         assert subtitle_files[0].path.name == "Amélie.fra.srt"
@@ -285,7 +285,7 @@ class TestComplexFileNaming:
             else:
                 subtitle_path.write_text("1\n00:00:01,000 --> 00:00:02,000\nTest")
 
-        subtitle_files = submerge.find_subtitle_files(video_path)
+        subtitle_files = sub_merge.find_subtitle_files(video_path)
 
         assert len(subtitle_files) == 4
 
@@ -303,18 +303,18 @@ class TestFontScenarios:
     def test_missing_fonts_folder_replace_mode(self, temp_dir, sample_video_file, sample_ass_file):
         """Test replace mode behavior when no Fonts folder exists - should still use --no-subtitles."""
         video_path = sample_video_file
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # No fonts directory exists
         assert not (temp_dir / "Fonts").exists()
 
         # Mock encoding detection
-        with patch('submerge.detect_subtitle_encoding') as mock_encoding:
+        with patch('sub_merge.detect_subtitle_encoding') as mock_encoding:
             mock_encoding.return_value = "UTF-8"
 
             # Capture the logging to extract the command in dry_run mode
             with patch('logging.info') as mock_log:
-                result = submerge.merge_video_with_subtitles(
+                result = sub_merge.merge_video_with_subtitles(
                     video_path=video_path,
                     subtitle_files=subtitle_files,
                     font_attachments=[],  # No external fonts
@@ -348,7 +348,7 @@ class TestFontScenarios:
         for filename, content in font_files.items():
             (fonts_dir / filename).write_bytes(content)
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
 
         # Should only include valid font files
         assert len(font_attachments) == 4
@@ -377,19 +377,19 @@ class TestFontScenarios:
         (deep_nested / "Custom.woff").write_bytes(b"custom")
 
         # Test non-recursive
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
         assert len(font_attachments) == 1
         assert font_attachments[0].path.name == "Arial.ttf"
 
         # Test recursive
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=True)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=True)
         assert len(font_attachments) == 3
         font_names = {font.path.name for font in font_attachments}
         assert font_names == {"Arial.ttf", "Times.otf", "Custom.woff"}
 
     def test_font_deduplication_real_world(self, temp_dir, sample_video_file, sample_ass_file):
         """Test font deduplication with realistic font names."""
-        [submerge.SubtitleFile.from_path(sample_ass_file, "test")]
+        [sub_merge.SubtitleFile.from_path(sample_ass_file, "test")]
 
         # Create fonts directory with variations of similar fonts
         fonts_dir = temp_dir / "Fonts"
@@ -406,16 +406,16 @@ class TestFontScenarios:
         for font_name in font_variants:
             (fonts_dir / font_name).write_bytes(f"content of {font_name}".encode())
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
 
         # Mock existing fonts in video
-        with patch('submerge.get_existing_font_attachments') as mock_fonts:
+        with patch('sub_merge.get_existing_font_attachments') as mock_fonts:
             mock_fonts.return_value = ["Arial.ttf", "Times.ttf"]
 
             # Filter fonts for append mode (should deduplicate)
             filtered_fonts = [
                 font for font in font_attachments
-                if submerge.should_attach_font(font.path, mock_fonts.return_value, "append")
+                if sub_merge.should_attach_font(font.path, mock_fonts.return_value, "append")
             ]
 
             # Should exclude Arial.ttf (exists) and Times.ttf (exists)
@@ -430,12 +430,12 @@ class TestErrorRecoveryScenarios:
 
     def test_mkvmerge_timeout_recovery(self, temp_dir, sample_video_file, sample_srt_file):
         """Test behavior when mkvmerge times out."""
-        subtitle_files = [submerge.SubtitleFile.from_path(sample_srt_file, "test")]
+        subtitle_files = [sub_merge.SubtitleFile.from_path(sample_srt_file, "test")]
 
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired('mkvmerge', 300)
 
-            result = submerge.merge_video_with_subtitles(
+            result = sub_merge.merge_video_with_subtitles(
                 video_path=sample_video_file,
                 subtitle_files=subtitle_files,
                 font_attachments=[],
@@ -464,7 +464,7 @@ class TestErrorRecoveryScenarios:
             # Skip permission test if we can't set permissions
             pass
 
-        font_attachments = submerge.collect_font_attachments(temp_dir, recursive=False)
+        font_attachments = sub_merge.collect_font_attachments(temp_dir, recursive=False)
 
         # Should still find the valid font
         valid_fonts = [font for font in font_attachments if font.path.name == "GoodFont.ttf"]
@@ -492,7 +492,7 @@ class TestErrorRecoveryScenarios:
         for video_name in unsupported_videos:
             (temp_dir / video_name).write_text("dummy video")
 
-        video_files = submerge.find_video_files(temp_dir, recursive=False)
+        video_files = sub_merge.find_video_files(temp_dir, recursive=False)
 
         # Should only find supported formats
         assert len(video_files) == len(supported_videos)
@@ -514,13 +514,13 @@ class TestErrorRecoveryScenarios:
             subtitle = temp_dir / f"video_{i:03d}.eng.srt"
             subtitle.write_text(f"subtitle {i}")
 
-        found_videos = submerge.find_video_files(temp_dir, recursive=False)
+        found_videos = sub_merge.find_video_files(temp_dir, recursive=False)
         assert len(found_videos) == 10
 
         # Test subtitle finding for each video
         videos_with_subs = 0
         for video in found_videos:
-            subs = submerge.find_subtitle_files(video)
+            subs = sub_merge.find_subtitle_files(video)
             if subs:
                 videos_with_subs += 1
 

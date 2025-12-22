@@ -1,5 +1,5 @@
 """
-Core functionality tests for subextract.
+Core functionality tests for sub_extract.
 
 Tests subtitle extraction from MKV files, language code handling,
 track identification, and file processing logic.
@@ -10,7 +10,7 @@ import json
 import subprocess
 import sys
 from unittest.mock import patch
-import subextract
+from tests.test_subextract.conftest import sub_extract
 from dataclasses import asdict
 
 
@@ -19,7 +19,7 @@ class TestSubTrack:
 
     def test_subtrack_creation(self):
         """Test creating a SubTrack instance."""
-        track = subextract.SubTrack(
+        track = sub_extract.SubTrack(
             tid=1,
             codec_id="S_TEXT/ASS",
             lang3="eng",
@@ -35,7 +35,7 @@ class TestSubTrack:
 
     def test_subtrack_to_dict(self):
         """Test converting SubTrack to dictionary."""
-        track = subextract.SubTrack(
+        track = sub_extract.SubTrack(
             tid=2,
             codec_id="S_TEXT/UTF8",
             lang3="jpn",
@@ -55,7 +55,7 @@ class TestSubTrack:
 
     def test_subtrack_optional_fields(self):
         """Test SubTrack with optional fields as None."""
-        track = subextract.SubTrack(
+        track = sub_extract.SubTrack(
             tid=3,
             codec_id="S_TEXT/ASS",
             lang3=None,
@@ -77,21 +77,21 @@ class TestToolDependency:
         """Test need() function when tool is available."""
         with patch('shutil.which', return_value='/usr/bin/mkvmerge'):
             # Should not raise an exception
-            subextract.need('mkvmerge')
+            sub_extract.need('mkvmerge')
 
     def test_need_tool_not_available(self):
         """Test need() function when tool is not available."""
         with patch('shutil.which', return_value=None):
             with pytest.raises(SystemExit) as exc_info:
-                subextract.need('nonexistent_tool')
+                sub_extract.need('nonexistent_tool')
 
             assert exc_info.value.code == 1
 
     def test_need_multiple_tools(self):
         """Test need() function with multiple tool checks."""
         with patch('shutil.which', return_value='/usr/bin/mkvtool'):
-            subextract.need('mkvmerge')
-            subextract.need('mkvextract')
+            sub_extract.need('mkvmerge')
+            sub_extract.need('mkvextract')
 
 
 class TestCodecExtension:
@@ -99,29 +99,29 @@ class TestCodecExtension:
 
     def test_codec_ext_ass(self):
         """Test extension for ASS codec."""
-        assert subextract.codec_ext("S_TEXT/ASS") == "ass"
+        assert sub_extract.codec_ext("S_TEXT/ASS") == "ass"
 
     def test_codec_ext_utf8(self):
         """Test extension for UTF8 codec."""
-        assert subextract.codec_ext("S_TEXT/UTF8") == "srt"
+        assert sub_extract.codec_ext("S_TEXT/UTF8") == "srt"
 
     def test_codec_ext_vobsub(self):
         """Test extension for VobSub codec."""
-        assert subextract.codec_ext("S_VOBSUB") == "sub"
+        assert sub_extract.codec_ext("S_VOBSUB") == "sub"
 
     def test_codec_ext_pgs(self):
         """Test extension for PGS codec."""
-        assert subextract.codec_ext("S_HDMV/PGS") == "sup"
+        assert sub_extract.codec_ext("S_HDMV/PGS") == "sup"
 
     def test_codec_ext_unknown(self):
         """Test extension for unknown codec."""
-        assert subextract.codec_ext("UNKNOWN_CODEC") == "sub"
+        assert sub_extract.codec_ext("UNKNOWN_CODEC") == "sub"
 
     def test_codec_ext_case_insensitive(self):
         """Test case insensitive codec handling."""
-        assert subextract.codec_ext("s_text/ass") == "ass"
-        assert subextract.codec_ext("S_ASS") == "ass"
-        assert subextract.codec_ext("s_ssa") == "ssa"
+        assert sub_extract.codec_ext("s_text/ass") == "ass"
+        assert sub_extract.codec_ext("S_ASS") == "ass"
+        assert sub_extract.codec_ext("s_ssa") == "ssa"
 
 
 class TestSlugFunction:
@@ -129,36 +129,36 @@ class TestSlugFunction:
 
     def test_slug_basic(self):
         """Test basic slug functionality."""
-        assert subextract.slug("Simple Name") == "simple-name"
+        assert sub_extract.slug("Simple Name") == "simple-name"
 
     def test_slug_with_spaces(self):
         """Test slug with multiple spaces."""
-        assert subextract.slug("Name   with   spaces") == "name-with-spaces"
+        assert sub_extract.slug("Name   with   spaces") == "name-with-spaces"
 
     def test_slug_with_special_characters(self):
         """Test slug with special characters."""
-        assert subextract.slug("Name/with\\special:*chars") == "name-with-special-chars"
+        assert sub_extract.slug("Name/with\\special:*chars") == "name-with-special-chars"
 
     def test_slug_empty_string(self):
         """Test slug with empty string."""
-        assert subextract.slug("") == ""
+        assert sub_extract.slug("") == ""
 
     def test_slug_unicode_characters(self):
         """Test slug with unicode characters."""
         # Unicode accented characters get replaced with dashes
-        assert subextract.slug("Café naïve") == "caf-na-ve"
+        assert sub_extract.slug("Café naïve") == "caf-na-ve"
 
     def test_slug_with_dashes(self):
         """Test slug with existing dashes."""
-        assert subextract.slug("name-with-dashes") == "name-with-dashes"
+        assert sub_extract.slug("name-with-dashes") == "name-with-dashes"
 
     def test_slug_already_lowercase(self):
         """Test slug with already lowercase text."""
-        assert subextract.slug("lowercase text") == "lowercase-text"
+        assert sub_extract.slug("lowercase text") == "lowercase-text"
 
     def test_slug_uppercase(self):
         """Test slug with uppercase text."""
-        assert subextract.slug("UPPERCASE TEXT") == "uppercase-text"
+        assert sub_extract.slug("UPPERCASE TEXT") == "uppercase-text"
 
 
 class TestLanguageCodeNormalization:
@@ -166,38 +166,38 @@ class TestLanguageCodeNormalization:
 
     def test_lang_code_3_valid_3_letter(self):
         """Test valid 3-letter language codes."""
-        assert subextract.lang_code_3("eng") == "eng"
-        assert subextract.lang_code_3("jpn") == "jpn"
-        assert subextract.lang_code_3("chi") == "chi"
+        assert sub_extract.lang_code_3("eng") == "eng"
+        assert sub_extract.lang_code_3("jpn") == "jpn"
+        assert sub_extract.lang_code_3("chi") == "chi"
 
     def test_lang_code_3_case_insensitive(self):
         """Test case insensitive 3-letter language codes."""
-        assert subextract.lang_code_3("ENG") == "eng"
-        assert subextract.lang_code_3("JPN") == "jpn"
-        assert subextract.lang_code_3("CHI") == "chi"
+        assert sub_extract.lang_code_3("ENG") == "eng"
+        assert sub_extract.lang_code_3("JPN") == "jpn"
+        assert sub_extract.lang_code_3("CHI") == "chi"
 
     def test_lang_code_3_2_letter_codes(self):
         """Test that 2-letter codes return 'und' (function only handles 3-letter codes)."""
-        assert subextract.lang_code_3("en") == "und"
-        assert subextract.lang_code_3("ja") == "und"
-        assert subextract.lang_code_3("zh") == "und"
+        assert sub_extract.lang_code_3("en") == "und"
+        assert sub_extract.lang_code_3("ja") == "und"
+        assert sub_extract.lang_code_3("zh") == "und"
 
     def test_lang_code_3_unknown(self):
         """Test unknown language codes."""
         # If it's 3 letters, it returns as-is even if unknown
-        assert subextract.lang_code_3("xyz") == "xyz"
-        assert subextract.lang_code_3("xx") == "und"  # 2 letters -> und
-        assert subextract.lang_code_3("") == "und"
+        assert sub_extract.lang_code_3("xyz") == "xyz"
+        assert sub_extract.lang_code_3("xx") == "und"  # 2 letters -> und
+        assert sub_extract.lang_code_3("") == "und"
 
     def test_lang_code_3_none_input(self):
         """Test None input."""
-        assert subextract.lang_code_3(None) == "und"
+        assert sub_extract.lang_code_3(None) == "und"
 
     def test_lang_code_3_edge_cases(self):
         """Test edge cases."""
-        assert subextract.lang_code_3("en ") == "und"  # with space
-        assert subextract.lang_code_3("engg") == "und"  # too long
-        assert subextract.lang_code_3("jp") == "und"   # too short
+        assert sub_extract.lang_code_3("en ") == "und"  # with space
+        assert sub_extract.lang_code_3("engg") == "und"  # too long
+        assert sub_extract.lang_code_3("jp") == "und"   # too short
 
 
 class TestJsonIdentify:
@@ -241,7 +241,7 @@ class TestJsonIdentify:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = json.dumps(mock_json_output)
 
-            result = subextract.run_json_identify(mkv_file)
+            result = sub_extract.run_json_identify(mkv_file)
 
             assert isinstance(result, dict)
             assert "tracks" in result
@@ -277,7 +277,7 @@ class TestJsonIdentify:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = json.dumps(mock_json_output)
 
-            result = subextract.run_json_identify(mkv_file)
+            result = sub_extract.run_json_identify(mkv_file)
 
             assert isinstance(result, dict)
             assert len([t for t in result["tracks"] if t["type"] == "subtitles"]) == 0
@@ -293,7 +293,7 @@ class TestJsonIdentify:
             mock_run.side_effect = error
 
             with pytest.raises(RuntimeError, match="Command failed"):
-                subextract.run_json_identify(mkv_file)
+                sub_extract.run_json_identify(mkv_file)
 
     def test_run_json_identify_malformed_json(self, temp_dir):
         """Test JSON identification with malformed JSON output."""
@@ -305,7 +305,7 @@ class TestJsonIdentify:
             mock_run.return_value.stdout = "invalid json output"
 
             with pytest.raises(RuntimeError, match="Failed to parse JSON"):
-                subextract.run_json_identify(mkv_file)
+                sub_extract.run_json_identify(mkv_file)
 
     def test_run_json_identify_missing_properties(self, temp_dir):
         """Test JSON identification with missing track properties."""
@@ -327,7 +327,7 @@ class TestJsonIdentify:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = json.dumps(mock_json_output)
 
-            result = subextract.run_json_identify(mkv_file)
+            result = sub_extract.run_json_identify(mkv_file)
 
             assert isinstance(result, dict)
             subtitle_track = result["tracks"][0]
@@ -346,7 +346,7 @@ class TestMKVFileIteration:
         (temp_dir / "movie2.mkv").write_bytes(b"content2")
         (temp_dir / "movie3.mkv").write_bytes(b"content3")
 
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         assert len(files) == 3
         assert all(f.suffix == ".mkv" for f in files)
@@ -358,7 +358,7 @@ class TestMKVFileIteration:
         (temp_dir / "MOVIE1.MKV").write_bytes(b"content1")
         (temp_dir / "MOVIE2.MKV").write_bytes(b"content2")
 
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         assert len(files) == 2
         assert all(f.suffix == ".MKV" for f in files)
@@ -371,7 +371,7 @@ class TestMKVFileIteration:
         (temp_dir / "UPPER.MKV").write_bytes(b"content2")
         (temp_dir / "Mixed.Mkv").write_bytes(b"content3")
 
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         # Function only searches for .mkv and .MKV, not mixed case
         assert len(files) == 2
@@ -387,7 +387,7 @@ class TestMKVFileIteration:
         (temp_dir / "a_movie.mkv").write_bytes(b"content2")
         (temp_dir / "m_movie.mkv").write_bytes(b"content3")
 
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         assert [f.name for f in files] == ["a_movie.mkv", "m_movie.mkv", "z_movie.mkv"]
 
@@ -398,13 +398,13 @@ class TestMKVFileIteration:
         (temp_dir / "subtitle.srt").write_bytes(b"content2")
         (temp_dir / "document.txt").write_bytes(b"content3")
 
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         assert len(files) == 0
 
     def test_iter_mkvs_in_dir_empty_directory(self, temp_dir):
         """Test iteration in empty directory."""
-        files = list(subextract.iter_mkvs_in_dir(temp_dir))
+        files = list(sub_extract.iter_mkvs_in_dir(temp_dir))
 
         assert len(files) == 0
 
@@ -412,7 +412,7 @@ class TestMKVFileIteration:
 class TestExtractionProcess:
     """Test subtitle extraction process."""
 
-    @patch('subextract.run_json_identify')
+    @patch('sub_extract.run_json_identify')
     @patch('subprocess.run')
     def test_extract_subs_for_file_success(self, mock_subprocess, mock_identify, temp_dir):
         """Test successful subtitle extraction."""
@@ -440,14 +440,14 @@ class TestExtractionProcess:
         # Mock successful extraction
         mock_subprocess.return_value.returncode = 0
 
-        success, message = subextract.extract_subs_for_file(mkv_file, outdir)
+        success, message = sub_extract.extract_subs_for_file(mkv_file, outdir)
 
         assert success
         assert "Successfully extracted" in message
         assert "test.mkv" in message
         mock_identify.assert_called_once_with(mkv_file)
 
-    @patch('subextract.run_json_identify')
+    @patch('sub_extract.run_json_identify')
     def test_extract_subs_for_file_no_subtitles(self, mock_identify, temp_dir):
         """Test extraction when no subtitle tracks found."""
         mkv_file = temp_dir / "test.mkv"
@@ -466,13 +466,13 @@ class TestExtractionProcess:
         }
         mock_identify.return_value = mock_json
 
-        success, message = subextract.extract_subs_for_file(mkv_file, outdir)
+        success, message = sub_extract.extract_subs_for_file(mkv_file, outdir)
 
         assert success
         assert "No subtitle tracks" in message
         mock_identify.assert_called_once_with(mkv_file)
 
-    @patch('subextract.run_json_identify')
+    @patch('sub_extract.run_json_identify')
     @patch('subprocess.run')
     def test_extract_subs_for_file_extraction_failure(self, mock_subprocess, mock_identify, temp_dir):
         """Test extraction when mkvextract fails."""
@@ -502,12 +502,12 @@ class TestExtractionProcess:
         mock_subprocess.side_effect = error
 
         with patch('builtins.print'):
-            success, message = subextract.extract_subs_for_file(mkv_file, outdir)
+            success, message = sub_extract.extract_subs_for_file(mkv_file, outdir)
 
             assert not success
             assert "mkvextract failed" in message
 
-    @patch('subextract.run_json_identify')
+    @patch('sub_extract.run_json_identify')
     @patch('subprocess.run')
     def test_extract_subs_for_file_filename_collision(self, mock_subprocess, mock_identify, temp_dir):
         """Test extraction with filename collision handling."""
@@ -538,7 +538,7 @@ class TestExtractionProcess:
         existing_file = outdir / "test.eng.ass"
         existing_file.write_text("existing content")
 
-        success, message = subextract.extract_subs_for_file(mkv_file, outdir)
+        success, message = sub_extract.extract_subs_for_file(mkv_file, outdir)
 
         assert success
         assert "Successfully extracted" in message
@@ -547,7 +547,7 @@ class TestExtractionProcess:
 class TestBatchProcessing:
     """Test batch processing of multiple MKV files."""
 
-    @patch('subextract.extract_subs_for_file')
+    @patch('sub_extract.extract_subs_for_file')
     def test_process_mkvs_sequential(self, mock_extract, temp_dir):
         """Test sequential processing of multiple files."""
         mkv_files = [
@@ -561,13 +561,13 @@ class TestBatchProcessing:
         # Mock successful extraction
         mock_extract.return_value = (True, "Success")
 
-        successful, failed = subextract.process_mkvs(mkv_files, outdir, max_workers=1)
+        successful, failed = sub_extract.process_mkvs(mkv_files, outdir, max_workers=1)
 
         assert successful == 3
         assert failed == 0
         assert mock_extract.call_count == 3
 
-    @patch('subextract.extract_subs_for_file')
+    @patch('sub_extract.extract_subs_for_file')
     def test_process_mkvs_with_failures(self, mock_extract, temp_dir):
         """Test processing with some failures."""
         mkv_files = [
@@ -585,13 +585,13 @@ class TestBatchProcessing:
             (True, "Success")
         ]
 
-        successful, failed = subextract.process_mkvs(mkv_files, outdir, max_workers=1)
+        successful, failed = sub_extract.process_mkvs(mkv_files, outdir, max_workers=1)
 
         assert successful == 2
         assert failed == 1
         assert mock_extract.call_count == 3
 
-    @patch('subextract.extract_subs_for_file')
+    @patch('sub_extract.extract_subs_for_file')
     def test_process_mkvs_parallel(self, mock_extract, temp_dir):
         """Test parallel processing of multiple files."""
         mkv_files = [
@@ -606,13 +606,13 @@ class TestBatchProcessing:
         # Mock successful extraction
         mock_extract.return_value = (True, "Success")
 
-        successful, failed = subextract.process_mkvs(mkv_files, outdir, max_workers=4)
+        successful, failed = sub_extract.process_mkvs(mkv_files, outdir, max_workers=4)
 
         assert successful == 4
         assert failed == 0
         assert mock_extract.call_count == 4
 
-    @patch('subextract.extract_subs_for_file')
+    @patch('sub_extract.extract_subs_for_file')
     def test_process_mkvs_exception_handling(self, mock_extract, temp_dir):
         """Test handling of exceptions during processing."""
         mkv_files = [
@@ -632,7 +632,7 @@ class TestBatchProcessing:
         mock_extract.side_effect = mock_side_effect
 
         with patch('builtins.print') as mock_print:
-            successful, failed = subextract.process_mkvs(mkv_files, outdir, max_workers=2)
+            successful, failed = sub_extract.process_mkvs(mkv_files, outdir, max_workers=2)
 
             assert successful == 1
             assert failed == 1
@@ -641,14 +641,14 @@ class TestBatchProcessing:
             assert len(error_calls) >= 1
             assert any("Processing error" in str(call) for call in error_calls)
 
-    @patch('subextract.extract_subs_for_file')
+    @patch('sub_extract.extract_subs_for_file')
     def test_process_mkvs_empty_list(self, mock_extract, temp_dir):
         """Test processing empty file list."""
         mkv_files = []
         outdir = temp_dir / "output"
         outdir.mkdir()
 
-        successful, failed = subextract.process_mkvs(mkv_files, outdir, max_workers=1)
+        successful, failed = sub_extract.process_mkvs(mkv_files, outdir, max_workers=1)
 
         assert successful == 0
         assert failed == 0
