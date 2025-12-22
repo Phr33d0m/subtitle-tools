@@ -79,7 +79,7 @@ class Stats:
 
 def check_dependencies() -> None:
     """Ensure required tools are available."""
-    for tool in ["subattachextract", "subextract"]:
+    for tool in ["sub-attachment-extract", "sub-extract"]:
         if shutil.which(tool) is None:
             console.print(f"[red]Error:[/red] '{tool}' is required but not found in PATH.")
             sys.exit(1)
@@ -502,7 +502,7 @@ def delete_directory(directory: Path) -> None:
 
 
 def extract_for_file(mkv_file: Path, output_dir: Path, dry_run: bool) -> bool:
-    """Run subattachextract and subextract for a single MKV file (no parallelism)."""
+    """Run sub-attachment-extract and sub-extract for a single MKV file (no parallelism)."""
     if dry_run:
         return True
 
@@ -510,13 +510,13 @@ def extract_for_file(mkv_file: Path, output_dir: Path, dry_run: bool) -> bool:
 
     # Extract attachments (single file, no parallel needed)
     result1 = subprocess.run(
-        ["subattachextract", str(mkv_file), "-o", str(output_dir), "-q"],
+        ["sub-attachment-extract", str(mkv_file), "-o", str(output_dir), "-q"],
         capture_output=True,
     )
 
     # Extract subtitles (single file, no parallel needed)
     result2 = subprocess.run(
-        ["subextract", str(mkv_file), "-o", str(output_dir)],
+        ["sub-extract", str(mkv_file), "-o", str(output_dir)],
         capture_output=True,
     )
 
@@ -524,7 +524,7 @@ def extract_for_file(mkv_file: Path, output_dir: Path, dry_run: bool) -> bool:
 
 
 def extract_for_directory(input_dir: Path, output_dir: Path, dry_run: bool) -> bool:
-    """Run subattachextract and subextract on entire directory with parallelism."""
+    """Run sub-attachment-extract and sub-extract on entire directory with parallelism."""
     if dry_run:
         return True
 
@@ -532,13 +532,13 @@ def extract_for_directory(input_dir: Path, output_dir: Path, dry_run: bool) -> b
 
     # Extract attachments (parallel on directory)
     result1 = subprocess.run(
-        ["subattachextract", str(input_dir), "-o", str(output_dir), "-p", str(PARALLEL_WORKERS), "-q"],
+        ["sub-attachment-extract", str(input_dir), "-o", str(output_dir), "-p", str(PARALLEL_WORKERS), "-q"],
         capture_output=True,
     )
 
     # Extract subtitles (parallel on directory)
     result2 = subprocess.run(
-        ["subextract", str(input_dir), "-o", str(output_dir), "-p", str(PARALLEL_WORKERS)],
+        ["sub-extract", str(input_dir), "-o", str(output_dir), "-p", str(PARALLEL_WORKERS)],
         capture_output=True,
     )
 
